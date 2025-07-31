@@ -64,7 +64,7 @@ namespace mt_backend.Controllers
             task.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            return NoContent();
+            return Ok(task);
         }
     }
 }

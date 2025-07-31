@@ -20,11 +20,11 @@ namespace mt_backend.Data
 
             // Seed Users
             modelBuilder.Entity<User>().HasData(
-                new User { Id = 1, Name = "Alice", Email = "alice@example.com", CreatedAt = DateTime.UtcNow },
-                new User { Id = 2, Name = "Bob", Email = "bob@example.com", CreatedAt = DateTime.UtcNow },
-                new User { Id = 3, Name = "Anne", Email = "anne@example.com", CreatedAt = DateTime.UtcNow },
-                new User { Id = 4, Name = "Peter", Email = "peter@example.com", CreatedAt = DateTime.UtcNow },
-                new User { Id = 5, Name = "Jenny", Email = "jenny@example.com", CreatedAt = DateTime.UtcNow }
+                new User { Id = 1, Name = "Alice", Email = "alice@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow },
+                new User { Id = 2, Name = "Bob", Email = "bob@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow },
+                new User { Id = 3, Name = "Anne", Email = "anne@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow },
+                new User { Id = 4, Name = "Peter", Email = "peter@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow },
+                new User { Id = 5, Name = "Jenny", Email = "jenny@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow }
             );
 
             // Seed Tasks
