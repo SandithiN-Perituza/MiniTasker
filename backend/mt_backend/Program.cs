@@ -16,8 +16,17 @@ builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
-var app = builder.Build();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend",
+        policy => policy.WithOrigins("http://localhost:5173")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod());
+});
 
+
+var app = builder.Build();
+app.UseCors("AllowFrontend");
 
 app.UseHttpsRedirection();
 
