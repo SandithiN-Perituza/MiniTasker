@@ -55,7 +55,7 @@ namespace mt_backend.Controllers
 
             var task = await _context.Tasks.FindAsync(id);
             if (task == null)
-                return NotFound();
+                return NotFound(new{message=$"Task with ID {id} not found."});
 
             task.Title = updatedTask.Title;
             task.Description = updatedTask.Description;
@@ -66,5 +66,38 @@ namespace mt_backend.Controllers
             await _context.SaveChangesAsync();
             return Ok(task);
         }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteTask(int id)
+        {             
+            var task = await _context.Tasks.FindAsync(id);
+            if (task == null)
+                return NotFound();
+            _context.Tasks.Remove(task);
+            await _context.SaveChangesAsync();
+            return Ok(new { message = $"Task with ID {id} is deleted successfully" });
+        }
+
+        [HttpGet("{id}")]
+        public async Task<ActionResult<TaskItemDto>> GetTaskById(int id)
+        {
+            var task = await _context.Tasks
+                .Include(t => t.AssignedUser)
+                .Where(t => t.Id == id)
+                .Select(t => new TaskItemDto
+                {
+                    Id = t.Id,
+                    Title = t.Title,
+                    Description = t.Description,
+                    Status = t.Status.ToString(),
+                    AssignedTo = t.AssignedTo ?? 0,
+                    AssignedUserName = t.AssignedUser.Name
+                })
+                .FirstOrDefaultAsync();
+            if (task == null)
+                return NotFound();
+            return Ok(task);
+        }
+
     }
 }
