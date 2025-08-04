@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { signup } from "../utils/auth";
 
 export default function Signup() {
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [form, setForm] = useState({ username: "", email:"", password: "" });
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -13,7 +13,8 @@ export default function Signup() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const success = await signup(form.username, form.password);
+    console.log("Form submitted:", form);
+    const success = await signup(form.username, form.email, form.password);
     if (success) {
       navigate("/login");
     } else {
@@ -30,6 +31,14 @@ export default function Signup() {
           name="username"
           placeholder="Username"
           value={form.username}
+          onChange={handleChange}
+          required
+        />
+        <input
+          className="border p-2 w-full"
+          name="email"
+          placeholder="Email"
+          value={form.email}
           onChange={handleChange}
           required
         />

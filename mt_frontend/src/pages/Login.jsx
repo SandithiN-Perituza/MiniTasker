@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { login } from "../utils/auth";
 
 export default function Login() {
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -13,11 +13,16 @@ export default function Login() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const success = await login(form.username, form.password);
+    console.log("Form submitted:", form);
+    console.log("Form submitted:email--", form.email);
+    console.log("Form submitted:password--", form.password);
+    
+    const success = await login(form.email, form.password);
+    console.log("Login success:", success);
     if (success) {
       navigate("/");
     } else {
-      setError("Invalid credentials");
+      setError("Invalid credentials", form.email);
     }
   }
 
@@ -27,9 +32,9 @@ export default function Login() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           className="border p-2 w-full"
-          name="username"
-          placeholder="Username"
-          value={form.username}
+          name="email"
+          placeholder="Email"
+          value={form.email}
           onChange={handleChange}
           required
         />
