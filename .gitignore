@@ -54,3 +54,4 @@ TestResult.xml
 nunit-*.xml
 /.vs
 /backend/.vs/backend
+/backend/.vs/ProjectEvaluation
