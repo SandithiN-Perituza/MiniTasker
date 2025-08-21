@@ -31,6 +31,7 @@ namespace mt_backend.Controllers
         {
             var hasher = new PasswordHasher<User>();
             user.Password = hasher.HashPassword(user, user.Password);
+            Console.WriteLine($"signin user: {user}, password: {user.Password}");
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
@@ -41,25 +42,40 @@ namespace mt_backend.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
+            Console.WriteLine($"Login attempt for request: {request}");
+            Console.WriteLine($"Login attempt for email: {request.Email}");
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Email == request.Email);
+
+            Console.WriteLine($"Login attempt: {request.Email} / {request.Password}");
 
             if (user == null)
                 return Unauthorized("User not found.Invalid email or password.");
 
+            Console.WriteLine($"Stored hash: {user.Password}");
 
-            var hasher = new PasswordHasher<User>();
-            var result = hasher.VerifyHashedPassword(user, user.Password, request.Password);
-
-            if (result == PasswordVerificationResult.Failed)
-                return Unauthorized("Password verification failed.Invalid email or password.");
-
-            return Ok(new
+            try
             {
-                user.Id,
-                user.Name,
-                user.Email
-            });
+                var hasher = new PasswordHasher<User>();
+                var result = hasher.VerifyHashedPassword(user, user.Password, request.Password);
+                Console.WriteLine($"Password verification result: {result}");
+
+                if (result == PasswordVerificationResult.Failed)
+                    return Unauthorized("Password verification failed. Invalid email or password.");
+
+                return Ok(new
+                {
+                    user.Id,
+                    user.Name,
+                    user.Email
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Exception during password verification: {ex.Message}");
+                return StatusCode(500, "Internal server error during password verification.");
+            }
+
         }
 
     }

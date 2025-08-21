@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using mt_backend.Data;
 
@@ -11,9 +12,11 @@ using mt_backend.Data;
 namespace mt_backend.Migrations
 {
     [DbContext(typeof(MiniTaskerDbContext))]
-    partial class MiniTaskerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250820084344_AddDueDateToTask")]
+    partial class AddDueDateToTask
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,61 +24,6 @@ namespace mt_backend.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("mt_backend.Models.Comment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("TaskId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TaskId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Comments");
-                });
-
-            modelBuilder.Entity("mt_backend.Models.Subtask", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("TaskId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TaskId");
-
-                    b.ToTable("Subtasks");
-                });
 
             modelBuilder.Entity("mt_backend.Models.TaskItem", b =>
                 {
@@ -102,6 +50,7 @@ namespace mt_backend.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Title")
+                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime>("UpdatedAt")
@@ -118,67 +67,67 @@ namespace mt_backend.Migrations
                         {
                             Id = 1,
                             AssignedTo = 1,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6582),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8548),
                             Description = "First task",
                             DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 0,
                             Title = "Sample Task",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6582)
+                            UpdatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8549)
                         },
                         new
                         {
                             Id = 2,
                             AssignedTo = 2,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6584),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8551),
                             Description = "Second task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6585),
+                            DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 1,
                             Title = "Sample Task 2",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6585)
+                            UpdatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8551)
                         },
                         new
                         {
                             Id = 3,
                             AssignedTo = 3,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6592),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8553),
                             Description = "Third task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6593),
+                            DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 2,
                             Title = "Sample Task 3",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6592)
+                            UpdatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8553)
                         },
                         new
                         {
                             Id = 4,
                             AssignedTo = 4,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6594),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8554),
                             Description = "Fourth task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6595),
+                            DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 1,
                             Title = "Sample Task 4",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6595)
+                            UpdatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8555)
                         },
                         new
                         {
                             Id = 5,
                             AssignedTo = 5,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6597),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8556),
                             Description = "Fifth task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6597),
+                            DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 0,
                             Title = "Sample Task 5",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6597)
+                            UpdatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8556)
                         },
                         new
                         {
                             Id = 6,
                             AssignedTo = 1,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6599),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8558),
                             Description = "sixth task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6600),
+                            DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 1,
                             Title = "Sample Task 6",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6600)
+                            UpdatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8558)
                         });
                 });
 
@@ -213,7 +162,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4436),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8457),
                             Email = "alice@example.com",
                             Name = "Alice",
                             Password = "hashed-password-1"
@@ -221,7 +170,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4438),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8459),
                             Email = "bob@example.com",
                             Name = "Bob",
                             Password = "hashed-password-1"
@@ -229,7 +178,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4439),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8460),
                             Email = "anne@example.com",
                             Name = "Anne",
                             Password = "hashed-password-1"
@@ -237,7 +186,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4441),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8461),
                             Email = "peter@example.com",
                             Name = "Peter",
                             Password = "hashed-password-1"
@@ -245,41 +194,11 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4442),
+                            CreatedAt = new DateTime(2025, 8, 20, 8, 43, 43, 634, DateTimeKind.Utc).AddTicks(8463),
                             Email = "jenny@example.com",
                             Name = "Jenny",
                             Password = "hashed-password-1"
                         });
-                });
-
-            modelBuilder.Entity("mt_backend.Models.Comment", b =>
-                {
-                    b.HasOne("mt_backend.Models.TaskItem", "Task")
-                        .WithMany("Comments")
-                        .HasForeignKey("TaskId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("mt_backend.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Task");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("mt_backend.Models.Subtask", b =>
-                {
-                    b.HasOne("mt_backend.Models.TaskItem", "Task")
-                        .WithMany("Subtasks")
-                        .HasForeignKey("TaskId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Task");
                 });
 
             modelBuilder.Entity("mt_backend.Models.TaskItem", b =>
@@ -290,13 +209,6 @@ namespace mt_backend.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("AssignedUser");
-                });
-
-            modelBuilder.Entity("mt_backend.Models.TaskItem", b =>
-                {
-                    b.Navigation("Comments");
-
-                    b.Navigation("Subtasks");
                 });
 
             modelBuilder.Entity("mt_backend.Models.User", b =>

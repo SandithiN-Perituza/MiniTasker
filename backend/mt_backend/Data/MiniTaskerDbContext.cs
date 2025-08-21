@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using mt_backend.Models;
+using System.Collections.Generic;
 
 namespace mt_backend.Data
 {
@@ -10,6 +11,9 @@ namespace mt_backend.Data
         public DbSet<User> Users { get; set; }
         public DbSet<TaskItem> Tasks { get; set; }
 
+        public DbSet<Comment> Comments { get; set; }
+
+        public DbSet<Subtask> Subtasks { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<TaskItem>()
@@ -26,6 +30,28 @@ namespace mt_backend.Data
                 new User { Id = 4, Name = "Peter", Email = "peter@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow },
                 new User { Id = 5, Name = "Jenny", Email = "jenny@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow }
             );
+
+            // TaskItem → SubTask
+            modelBuilder.Entity<Subtask>()
+                .HasOne(s => s.Task)
+                .WithMany(t => t.Subtasks)
+                .HasForeignKey(s => s.TaskId)
+                .IsRequired();
+
+            // Comment → TaskItem
+
+            modelBuilder.Entity<Comment>()
+                .HasOne(c => c.Task)
+                .WithMany(t => t.Comments)
+                .HasForeignKey(c => c.TaskId)
+                .IsRequired();
+
+            // Comment → User
+            modelBuilder.Entity<Comment>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .IsRequired();
 
             // Seed Tasks
             modelBuilder.Entity<TaskItem>().HasData(
@@ -47,7 +73,8 @@ namespace mt_backend.Data
                     Status = Models.TaskStatus.InProgress,
                     AssignedTo = 2,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow.AddDays(7)
                 },
                 new TaskItem
                 {
@@ -57,7 +84,8 @@ namespace mt_backend.Data
                     Status = Models.TaskStatus.Complete,
                     AssignedTo = 3,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow.AddDays(7)
                 },
                 new TaskItem
                 {
@@ -67,7 +95,8 @@ namespace mt_backend.Data
                     Status = Models.TaskStatus.InProgress,
                     AssignedTo = 4,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow.AddDays(7)
                 },
                 new TaskItem
                 {
@@ -77,7 +106,8 @@ namespace mt_backend.Data
                     Status = Models.TaskStatus.Pending,
                     AssignedTo = 5,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow.AddDays(7)
                 },
                 new TaskItem
                 {
@@ -87,7 +117,8 @@ namespace mt_backend.Data
                     Status = Models.TaskStatus.InProgress,
                     AssignedTo = 1,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow.AddDays(7)
                 }
             );
         }

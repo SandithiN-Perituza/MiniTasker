@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using mt_backend.Data;
 
@@ -11,9 +12,11 @@ using mt_backend.Data;
 namespace mt_backend.Migrations
 {
     [DbContext(typeof(MiniTaskerDbContext))]
-    partial class MiniTaskerDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250820094035_AddComments")]
+    partial class AddComments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -50,31 +53,6 @@ namespace mt_backend.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("Comments");
-                });
-
-            modelBuilder.Entity("mt_backend.Models.Subtask", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("TaskId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TaskId");
-
-                    b.ToTable("Subtasks");
                 });
 
             modelBuilder.Entity("mt_backend.Models.TaskItem", b =>
@@ -118,67 +96,67 @@ namespace mt_backend.Migrations
                         {
                             Id = 1,
                             AssignedTo = 1,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6582),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7919),
                             Description = "First task",
                             DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 0,
                             Title = "Sample Task",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6582)
+                            UpdatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7919)
                         },
                         new
                         {
                             Id = 2,
                             AssignedTo = 2,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6584),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7921),
                             Description = "Second task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6585),
+                            DueDate = new DateTime(2025, 8, 27, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7922),
                             Status = 1,
                             Title = "Sample Task 2",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6585)
+                            UpdatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7922)
                         },
                         new
                         {
                             Id = 3,
                             AssignedTo = 3,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6592),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7929),
                             Description = "Third task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6593),
+                            DueDate = new DateTime(2025, 8, 27, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7930),
                             Status = 2,
                             Title = "Sample Task 3",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6592)
+                            UpdatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7930)
                         },
                         new
                         {
                             Id = 4,
                             AssignedTo = 4,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6594),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7932),
                             Description = "Fourth task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6595),
+                            DueDate = new DateTime(2025, 8, 27, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7933),
                             Status = 1,
                             Title = "Sample Task 4",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6595)
+                            UpdatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7932)
                         },
                         new
                         {
                             Id = 5,
                             AssignedTo = 5,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6597),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7954),
                             Description = "Fifth task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6597),
+                            DueDate = new DateTime(2025, 8, 27, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7955),
                             Status = 0,
                             Title = "Sample Task 5",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6597)
+                            UpdatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7955)
                         },
                         new
                         {
                             Id = 6,
                             AssignedTo = 1,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6599),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7957),
                             Description = "sixth task",
-                            DueDate = new DateTime(2025, 8, 27, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6600),
+                            DueDate = new DateTime(2025, 8, 27, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7958),
                             Status = 1,
                             Title = "Sample Task 6",
-                            UpdatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(6600)
+                            UpdatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(7957)
                         });
                 });
 
@@ -213,7 +191,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4436),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(6166),
                             Email = "alice@example.com",
                             Name = "Alice",
                             Password = "hashed-password-1"
@@ -221,7 +199,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4438),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(6168),
                             Email = "bob@example.com",
                             Name = "Bob",
                             Password = "hashed-password-1"
@@ -229,7 +207,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4439),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(6169),
                             Email = "anne@example.com",
                             Name = "Anne",
                             Password = "hashed-password-1"
@@ -237,7 +215,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4441),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(6215),
                             Email = "peter@example.com",
                             Name = "Peter",
                             Password = "hashed-password-1"
@@ -245,7 +223,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedAt = new DateTime(2025, 8, 20, 9, 52, 11, 638, DateTimeKind.Utc).AddTicks(4442),
+                            CreatedAt = new DateTime(2025, 8, 20, 9, 40, 34, 906, DateTimeKind.Utc).AddTicks(6221),
                             Email = "jenny@example.com",
                             Name = "Jenny",
                             Password = "hashed-password-1"
@@ -271,17 +249,6 @@ namespace mt_backend.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("mt_backend.Models.Subtask", b =>
-                {
-                    b.HasOne("mt_backend.Models.TaskItem", "Task")
-                        .WithMany("Subtasks")
-                        .HasForeignKey("TaskId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Task");
-                });
-
             modelBuilder.Entity("mt_backend.Models.TaskItem", b =>
                 {
                     b.HasOne("mt_backend.Models.User", "AssignedUser")
@@ -295,8 +262,6 @@ namespace mt_backend.Migrations
             modelBuilder.Entity("mt_backend.Models.TaskItem", b =>
                 {
                     b.Navigation("Comments");
-
-                    b.Navigation("Subtasks");
                 });
 
             modelBuilder.Entity("mt_backend.Models.User", b =>
