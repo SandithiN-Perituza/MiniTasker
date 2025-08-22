@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createTask, updateTask, fetchUsers } from "../api/api";
+import { PiWarningCircleBold } from 'react-icons/pi';
 
 const statusOptions = [
   { value: 0, label: "Pending" },
@@ -34,6 +35,7 @@ export default function TaskForm({ onSuccess, task }) {
         description: task.description,
         status: statusMap[task.status] ?? 0,
         assignedTo: task.assignedTo || "",
+        dueDate: task.dueDate ? task.dueDate.split("T")[0] : "",
       });
     }
   }, [task]);
@@ -59,6 +61,9 @@ export default function TaskForm({ onSuccess, task }) {
     if (!form.assignedTo) {
       errs.assignedTo = "Please assign to a user.";
     }
+    if (!form.dueDate) {
+      errs.dueDate = "Due date is required.";
+    }
     return errs;
   }
 
@@ -69,62 +74,31 @@ export default function TaskForm({ onSuccess, task }) {
       setErrors(validationErrors);
       return;
     }
+    const payload = {
+      ...form,
+      assignedTo: form.assignedTo || null,
+    };
     if (task) {
-      await updateTask(task.id, { ...task, ...form, assignedTo: form.assignedTo || null });
+      await updateTask(task.id, { ...task, ...payload });
     } else {
-      await createTask({ ...form, assignedTo: form.assignedTo || null });
+      await createTask(payload);
     }
     onSuccess();
-    setForm({ title: "", description: "", status: 0, assignedTo: "" });
-    
     // reset form
     setForm({
       title: "",
       description: "",
       status: 0,
       assignedTo: "",
+      dueDate: "",
     });
     setErrors({});
   }
 
+  const isOverdue = form.dueDate && new Date(form.dueDate) < new Date() && form.status !== 2;
+
   return (
     <form className="space-y-4 p-4 bg-white rounded shadow" onSubmit={handleSubmit} noValidate>
-      {/* <input
-        className="border p-2 w-full"
-        name="title"
-        placeholder="Title"
-        value={form.title}
-        onChange={handleChange}
-        required
-      />
-      <textarea
-        className="border p-2 w-full"
-        name="description"
-        placeholder="Description"
-        value={form.description}
-        onChange={handleChange}
-      />
-      <select
-        className="border p-2 w-full"
-        name="status"
-        value={form.status}
-        onChange={handleChange}
-      >
-        {statusOptions.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-      <select
-        className="border p-2 w-full"
-        name="assignedTo"
-        value={form.assignedTo}
-        onChange={handleChange}
-      >
-        <option value="">Unassigned</option>
-        {users.map((u) => (
-          <option key={u.id} value={u.id}>{u.name}</option>
-        ))}
-      </select> */}
       <div>
         <label className="block mb-1 font-medium" htmlFor="title">
           Title
@@ -206,6 +180,32 @@ export default function TaskForm({ onSuccess, task }) {
           <p className="text-red-500 text-sm mt-1">
             {errors.assignedTo}
           </p>
+        )}
+      </div>
+      <div>
+        <label className="block mb-1 font-medium" htmlFor="dueDate">
+          Due Date
+        </label>
+        <input
+          id="dueDate"
+          name="dueDate"
+          type="date"
+          className={`border p-2 w-full ${
+            errors.dueDate ? "border-red-500" : ""
+          }`}
+          value={form.dueDate}
+          onChange={handleChange}
+        />
+        {errors.dueDate && (
+          <p className="text-red-500 text-sm mt-1">{errors.dueDate}</p>
+        )}
+        {isOverdue && (
+          <div className="flex items-center">
+            <PiWarningCircleBold className="inline-block mr-1 mt-1.5 text-red-600" />
+            <p className="text-red-600 text-sm mt-1 font-semibold">
+              This task is overdue!
+            </p>
+          </div>
         )}
       </div>
 

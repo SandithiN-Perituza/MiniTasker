@@ -10,7 +10,10 @@ export default function Header({ onMenuClick }) {
           <path d="M4 7h20M4 14h20M4 21h20" />
         </svg>
       </button>
-      <span className="text-2xl font-bold flex-1 text-center">Mini&nbsp;Tasker</span>
+      <div className="flex items-center justify-center flex-1 gap-2">
+        <img src="/logo.png" alt="Mini Tasker Logo" className="h-8" />
+        <span className="text-2xl font-bold">Mini&nbsp;Tasker</span>
+      </div>
     </header>
   );
 }

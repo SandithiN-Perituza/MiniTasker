@@ -1,5 +1,6 @@
 const API_URL = "https://localhost:7296/api";
 
+// Tasks
 // Fetch all tasks
 export async function fetchTasks() {
   const res = await fetch(`${API_URL}/tasks`);
@@ -36,6 +37,7 @@ export async function deleteTask(id) {
   return response.json();
 }
 
+// Users
 // Fetch all users
 export async function fetchUsers() {
   const res = await fetch(`${API_URL}/users`);
@@ -67,3 +69,67 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
+// Comments
+// Fetch comments for a task
+export async function fetchComments(taskId) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/comment`);
+  return res.json();
+}
+
+// Add a comment to a task
+export async function addComment(taskId, comment) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/comment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(comment),
+  });
+  return res.json();
+}
+
+// Subtasks
+// Fetch subtasks for a task
+export async function fetchSubtasks(taskId) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/subtask`);
+  return res.json();
+}
+
+// Add a subtask to a task
+export async function addSubtask(taskId, subtask) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/subtask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subtask),
+  });
+  return res.json();
+}
+
+// Complete a subtask
+export async function completeSubtask(taskId, subtaskId, subtask) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/subtask/${subtaskId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subtask),
+  });
+  return res.json();
+}
+
+// Update a subtask
+export async function updateSubtask(taskId, subtaskId, subtask) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/subtask/${subtaskId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(subtask),
+  });
+  return res.json();
+}
+
+// Delete a subtask
+export async function deleteSubtask(taskId, subtaskId) {
+  const res = await fetch(`${API_URL}/tasks/${taskId}/subtask/${subtaskId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error("Failed to delete subtask");
+  }
+  return res.json();
+}
