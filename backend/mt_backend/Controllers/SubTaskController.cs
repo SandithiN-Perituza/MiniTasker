@@ -16,7 +16,7 @@ public class SubtaskController : ControllerBase
         _context = context;
     }
 
-    // GET: api/tasks/{taskId}/subtasks
+    // GET: api/tasks/{taskId}/subtask
     [HttpGet]
     public async Task<ActionResult<IEnumerable<SubtaskDto>>> GetSubtasks(int taskId)
     {
@@ -33,7 +33,7 @@ public class SubtaskController : ControllerBase
         return Ok(subtasks);
     }
 
-    // POST: api/tasks/{taskId}/subtasks
+    // POST: api/tasks/{taskId}/subtask
     [HttpPost]
     public async Task<ActionResult<SubtaskDto>> CreateSubtask(int taskId, CreateSubtaskDto dto)
     {
@@ -61,7 +61,7 @@ public class SubtaskController : ControllerBase
         });
     }
 
-    // PATCH: api/tasks/{taskId}/subtasks/{id}
+    // PATCH: api/tasks/{taskId}/subtask/{id}
     [HttpPatch("{id}")]
     public async Task<IActionResult> MarkSubtaskCompleted(int taskId, int id)
     {
@@ -79,7 +79,7 @@ public class SubtaskController : ControllerBase
         return Ok(new { message = "SubTask Updated Successfully", subtask });
     }
 
-    // PUT: api/tasks/{taskId}/subtasks/{id}
+    // PUT: api/tasks/{taskId}/subtask/{id}
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateSubtask(int taskId, int id, CreateSubtaskDto dto)
     {
@@ -97,7 +97,7 @@ public class SubtaskController : ControllerBase
         return Ok(new { message = "SubTask Updated Successfully", subtask });
     }
 
-    // DELETE: api/tasks/{taskId}/subtasks/{id}
+    // DELETE: api/tasks/{taskId}/subtask/{id}
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteSubtask(int taskId, int id)
     {
@@ -112,7 +112,7 @@ public class SubtaskController : ControllerBase
         _context.Subtasks.Remove(subtask);
         await _context.SaveChangesAsync();
 
-        return Ok("SubTask deleted Successfully"); ;
+        return Ok(new { mesage =  "SubTask deleted Successfully" }); ;
     }
 }
 

@@ -9,6 +9,7 @@
         public string Status { get; set; }
         public int AssignedTo { get; set; }
         public string AssignedUserName { get; set; }
+        public DateTime DueDate { get; set; }
 
     }
 }

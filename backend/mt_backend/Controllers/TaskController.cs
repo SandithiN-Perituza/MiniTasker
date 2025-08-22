@@ -31,7 +31,8 @@ namespace mt_backend.Controllers
                     Description = t.Description,
                     Status = t.Status.ToString(),
                     AssignedTo = t.AssignedTo ?? 0,
-                    AssignedUserName = t.AssignedUser.Name
+                    AssignedUserName = t.AssignedUser.Name,
+                    DueDate = t.DueDate
                 })
                 .ToListAsync();
 
@@ -61,6 +62,7 @@ namespace mt_backend.Controllers
             task.Description = updatedTask.Description;
             task.Status = updatedTask.Status;
             task.AssignedTo = updatedTask.AssignedTo;
+            task.DueDate = updatedTask.DueDate;
             task.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -91,7 +93,8 @@ namespace mt_backend.Controllers
                     Description = t.Description,
                     Status = t.Status.ToString(),
                     AssignedTo = t.AssignedTo ?? 0,
-                    AssignedUserName = t.AssignedUser.Name
+                    AssignedUserName = t.AssignedUser.Name,
+                    DueDate = t.DueDate
                 })
                 .FirstOrDefaultAsync();
             if (task == null)

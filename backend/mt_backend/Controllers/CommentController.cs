@@ -17,26 +17,39 @@ namespace mt_backend.Controllers
             _context = context;
         }
 
-        // GET: api/tasks/{taskId}/comments
+        // GET: api/tasks/{taskId}/comment
         [HttpGet]
         public async Task<ActionResult<IEnumerable<CommentDto>>> GetComments(int taskId)
         {
             var comments = await _context.Comments
                 .Where(c => c.TaskId == taskId)
+                .Include(c => c.User)
                 .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new CommentResponseDto
+                {
+                    Id = c.Id,
+                    TaskId = c.TaskId,
+                    UserId = c.UserId,
+                    UserName = c.User.Name,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt
+                })
                 .ToListAsync();
 
             return Ok(comments);
         }
 
-        // POST: api/tasks/{taskId}/comments
-
+        // POST: api/tasks/{taskId}/comment
         [HttpPost]
         public async Task<ActionResult<Comment>> AddComment(int taskId, [FromBody] CommentDto dto)
         {
             var task = await _context.Tasks.FindAsync(taskId);
             if (task == null)
                 return NotFound("Task not found.");
+
+            var user = await _context.Users.FindAsync(dto.UserId);
+            if (user == null)
+                return NotFound("User not found.");
 
             var comment = new Comment
             {
@@ -49,11 +62,21 @@ namespace mt_backend.Controllers
             _context.Comments.Add(comment);
             await _context.SaveChangesAsync();
 
-            return Ok(new { message = "Comment created Successfully", comment });
+            var responseDto = new CommentResponseDto
+            {
+                Id = comment.Id,
+                TaskId = comment.TaskId,
+                UserId = comment.UserId,
+                UserName = user.Name,
+                Content = comment.Content,
+                CreatedAt = comment.CreatedAt
+            };
+
+            return Ok(new { message = "Comment created Successfully", comment = responseDto });
         }
 
 
-        // PUT: api/tasks/{taskId}/comments/{commentId}
+        // PUT: api/tasks/{taskId}/comment/{commentId}
         [HttpPut("{commentId}")]
         public async Task<IActionResult> UpdateComment(int taskId, int commentId, [FromBody] CommentDto dto)
         {
@@ -72,7 +95,7 @@ namespace mt_backend.Controllers
         }
 
 
-        // DELETE: api/tasks/{taskId}/comments/{commentId}
+        // DELETE: api/tasks/{taskId}/comment/{commentId}
         [HttpDelete("{commentId}")]
         public async Task<IActionResult> DeleteComment(int taskId, int commentId)
         {
@@ -88,7 +111,7 @@ namespace mt_backend.Controllers
             return Ok("Comment Deleted Successfully");
         }
 
-        // GET: api/tasks/{taskId}/comments/{commentId}
+        // GET: api/tasks/{taskId}/comment/{commentId}
 
 
     }
