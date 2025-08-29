@@ -1,15 +1,11 @@
-using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using mt_backend.Data;
 using mt_backend.Services;
+using mt_backend.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -18,6 +14,12 @@ builder.Services.AddControllers()
     });
 
 builder.Services.AddEndpointsApiExplorer();
+
+// Register your services
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<ISubtaskService, SubtaskService>();
+builder.Services.AddScoped<ICommentService, CommentService>();
 
 // Configure MySQL database context
 builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
@@ -33,17 +35,11 @@ builder.Services.AddCors(options =>
                         .AllowCredentials());
 });
 
-builder.Services.AddScoped<INotificationService, NotificationService>();
-
 var app = builder.Build();
+
 app.UseCors("AllowFrontend");
-
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
-
 app.MapGet("/", () => "MiniTasker API is running!");
-
 app.Run();

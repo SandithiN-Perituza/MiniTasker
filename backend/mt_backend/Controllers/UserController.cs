@@ -1,10 +1,9 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using mt_backend.Data;
+﻿using Microsoft.AspNetCore.Mvc;
 using mt_backend.DTOs;
 using mt_backend.Models;
+using mt_backend.Services;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace mt_backend.Controllers
@@ -13,70 +12,69 @@ namespace mt_backend.Controllers
     [Route("api/[controller]")]
     public class UsersController : ControllerBase
     {
-        private readonly MiniTaskerDbContext _context;
+        private readonly IUserService _userService;
 
-        public UsersController(MiniTaskerDbContext context)
+        public UsersController(IUserService userService)
         {
-            _context = context;
+            _userService = userService;
         }
 
+        // GET: api/users
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
+        public async Task<ActionResult<IEnumerable<UserResponseDto>>> GetUsers()
         {
-            return await _context.Users.ToListAsync();
+            var users = await _userService.GetUsersAsync();
+
+            var userResponses = users.Select(u => new UserResponseDto
+            {
+                Id = u.Id,
+                Name = u.Name,
+                Email = u.Email
+            });
+
+            return Ok(userResponses);
         }
 
+        // POST: api/users
         [HttpPost]
-        public async Task<ActionResult<User>> CreateUser(User user)
+        public async Task<ActionResult<UserResponseDto>> CreateUser([FromBody] CreateUserRequestDto request)
         {
-            var hasher = new PasswordHasher<User>();
-            user.Password = hasher.HashPassword(user, user.Password);
-            Console.WriteLine($"signin user: {user}, password: {user.Password}");
+            var newUser = new User
+            {
+                Name = request.Name,
+                Email = request.Email,
+                Password = request.Password
+            };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            var createdUser = await _userService.CreateUserAsync(newUser);
 
-            return CreatedAtAction(nameof(GetUsers), new { id = user.Id }, user);
+            var response = new UserResponseDto
+            {
+                Id = createdUser.Id,
+                Name = createdUser.Name,
+                Email = createdUser.Email
+            };
+
+            return CreatedAtAction(nameof(GetUsers), new { id = response.Id }, response);
         }
 
+        // POST: api/users/login
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
-            Console.WriteLine($"Login attempt for request: {request}");
-            Console.WriteLine($"Login attempt for email: {request.Email}");
-            var user = await _context.Users
-                .FirstOrDefaultAsync(u => u.Email == request.Email);
-
-            Console.WriteLine($"Login attempt: {request.Email} / {request.Password}");
+            var user = await _userService.LoginAsync(request);
 
             if (user == null)
-                return Unauthorized("User not found.Invalid email or password.");
+                return Unauthorized("Invalid email or password.");
 
-            Console.WriteLine($"Stored hash: {user.Password}");
-
-            try
+            var response = new UserResponseDto
             {
-                var hasher = new PasswordHasher<User>();
-                var result = hasher.VerifyHashedPassword(user, user.Password, request.Password);
-                Console.WriteLine($"Password verification result: {result}");
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email
+            };
 
-                if (result == PasswordVerificationResult.Failed)
-                    return Unauthorized("Password verification failed. Invalid email or password.");
-
-                return Ok(new
-                {
-                    user.Id,
-                    user.Name,
-                    user.Email
-                });
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Exception during password verification: {ex.Message}");
-                return StatusCode(500, "Internal server error during password verification.");
-            }
-
+            return Ok(response);
         }
-
     }
 }

@@ -1,4 +1,3 @@
-
 using NUnit.Framework;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +6,7 @@ using mt_backend.Controllers;
 using mt_backend.Data;
 using mt_backend.Models;
 using mt_backend.DTOs;
+using mt_backend.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +19,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests
     {
         private UsersController _controller;
         private MiniTaskerDbContext _context;
+        private IUserService _userService;
 
         [SetUp]
         public void Setup()
@@ -28,7 +29,8 @@ namespace MiniTasker.Tests.Controllers.integrationTests
                 .Options;
 
             _context = new MiniTaskerDbContext(options);
-            _controller = new UsersController(_context);
+            _userService = new UserService(_context);
+            _controller = new UsersController(_userService);
         }
 
         [TearDown]
@@ -40,19 +42,26 @@ namespace MiniTasker.Tests.Controllers.integrationTests
         [Test]
         public async Task CreateUser_AndRetrieveUser_Success()
         {
-            var user = new User
+            var request = new CreateUserRequestDto
             {
                 Name = "Kasundi",
                 Email = "kasundi@example.com",
                 Password = "1234"
             };
 
-            var result = await _controller.CreateUser(user);
+            var result = await _controller.CreateUser(request);
             Assert.IsInstanceOf<CreatedAtActionResult>(result.Result);
 
             var getResult = await _controller.GetUsers();
-            Assert.IsInstanceOf<ActionResult<IEnumerable<User>>>(getResult);
-            Assert.IsTrue(getResult.Value.Any(u => u.Email == "kasundi@example.com"));
+
+            var okResult = getResult.Result as OkObjectResult;
+
+            Assert.IsNotNull(okResult, "Expected OkObjectResult but got null.");
+            var users = okResult.Value as IEnumerable<UserResponseDto>;
+
+            Assert.IsNotNull(users, "Expected user list but got null.");
+            Assert.IsTrue(users.Any(u => u.Email == "kasundi@example.com"), "User not found in retrieved list.");
+
         }
 
         [Test]

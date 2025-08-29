@@ -1,64 +1,42 @@
-using NUnit.Framework;
+﻿using NUnit.Framework;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Moq;
 using mt_backend.Controllers;
-using mt_backend.Data;
 using mt_backend.Models;
 using mt_backend.DTOs;
 using mt_backend.Services;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using TaskStatus = mt_backend.Models.TaskStatus;
 
-namespace MiniTasker.Tests.Controllers.UnitTests
+namespace MiniTasker.Tests.Controllers.unitTests
 {
     [TestFixture]
-    public class TasksControllerUnitTests
+    public class TasksControllerMoqUnitTests
     {
         private TasksController _controller;
-        private MiniTaskerDbContext _context;
+        private Mock<ITaskService> _mockTaskService;
 
         [SetUp]
         public void Setup()
         {
-            var options = new DbContextOptionsBuilder<MiniTaskerDbContext>()
-                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-                .Options;
-
-            _context = new MiniTaskerDbContext(options);
-
-            var user = new User { Id = 1, Name = "Kasundi", Email = "kasundi@example.com", Password = "hashed" };
-            _context.Users.Add(user);
-
-            var task = new TaskItem
-            {
-                Id = 1,
-                Title = "Test Task",
-                Description = "Test Description",
-                Status = TaskStatus.Pending,
-                AssignedTo = 1,
-                DueDate = DateTime.UtcNow.AddDays(7),
-                AssignedUser = user
-            };
-            _context.Tasks.Add(task);
-            _context.SaveChanges();
-
-            var taskService = new TaskService(_context);
-            _controller = new TasksController(taskService);
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            _context.Dispose();
+            _mockTaskService = new Mock<ITaskService>();
+            _controller = new TasksController(_mockTaskService.Object);
         }
 
         [Test]
         public async Task GetTasks_ReturnsAllTasks()
         {
+            var mockTasks = new List<TaskItemDto>
+            {
+                new TaskItemDto { Id = 1, Title = "Test Task", Description = "Test Desc", Status = "Pending", AssignedTo = 1, AssignedUserName = "Kasundi", DueDate = DateTime.UtcNow.AddDays(7) }
+            };
+
+            _mockTaskService.Setup(s => s.GetTasksAsync()).ReturnsAsync(mockTasks);
+
             var result = await _controller.GetTasks();
+
             Assert.IsInstanceOf<OkObjectResult>(result.Result);
             var tasks = (result.Result as OkObjectResult).Value as IEnumerable<TaskItemDto>;
             Assert.IsNotEmpty(tasks);
@@ -69,6 +47,7 @@ namespace MiniTasker.Tests.Controllers.UnitTests
         {
             var newTask = new TaskItem
             {
+                Id = 2,
                 Title = "New Task",
                 Description = "New Description",
                 Status = TaskStatus.Pending,
@@ -76,7 +55,10 @@ namespace MiniTasker.Tests.Controllers.UnitTests
                 DueDate = DateTime.UtcNow.AddDays(5)
             };
 
+            _mockTaskService.Setup(s => s.CreateTaskAsync(It.IsAny<TaskItem>())).ReturnsAsync(newTask);
+
             var result = await _controller.CreateTask(newTask);
+
             Assert.IsInstanceOf<CreatedAtActionResult>(result.Result);
             var createdTask = (result.Result as CreatedAtActionResult).Value as TaskItem;
             Assert.AreEqual("New Task", createdTask.Title);
@@ -95,7 +77,10 @@ namespace MiniTasker.Tests.Controllers.UnitTests
                 DueDate = DateTime.UtcNow.AddDays(10)
             };
 
+            _mockTaskService.Setup(s => s.UpdateTaskAsync(1, updatedTask)).ReturnsAsync(updatedTask);
+
             var result = await _controller.UpdateTask(1, updatedTask);
+
             Assert.IsInstanceOf<OkObjectResult>(result);
             var task = (result as OkObjectResult).Value as TaskItem;
             Assert.AreEqual("Updated Task", task.Title);
@@ -104,7 +89,10 @@ namespace MiniTasker.Tests.Controllers.UnitTests
         [Test]
         public async Task DeleteTask_ValidId_DeletesTask()
         {
+            _mockTaskService.Setup(s => s.DeleteTaskAsync(1)).ReturnsAsync(true);
+
             var result = await _controller.DeleteTask(1);
+
             Assert.IsInstanceOf<OkObjectResult>(result);
             var message = (result as OkObjectResult).Value.ToString();
             Assert.IsTrue(message.Contains("deleted successfully"));
@@ -113,7 +101,21 @@ namespace MiniTasker.Tests.Controllers.UnitTests
         [Test]
         public async Task GetTaskById_ValidId_ReturnsTask()
         {
+            var taskDto = new TaskItemDto
+            {
+                Id = 1,
+                Title = "Test Task",
+                Description = "Test Description",
+                Status = "Pending",
+                AssignedTo = 1,
+                AssignedUserName = "Kasundi",
+                DueDate = DateTime.UtcNow.AddDays(7)
+            };
+
+            _mockTaskService.Setup(s => s.GetTaskByIdAsync(1)).ReturnsAsync(taskDto);
+
             var result = await _controller.GetTaskById(1);
+
             Assert.IsInstanceOf<OkObjectResult>(result.Result);
             var task = (result.Result as OkObjectResult).Value as TaskItemDto;
             Assert.AreEqual(1, task.Id);

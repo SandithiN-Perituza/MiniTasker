@@ -1,115 +1,86 @@
-
 using NUnit.Framework;
+using Moq;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using mt_backend.Controllers;
-using mt_backend.Data;
-using mt_backend.Models;
 using mt_backend.DTOs;
-using System;
+using mt_backend.Services;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace MiniTasker.Tests.Controllers.unitTests
+namespace MiniTasker.Tests.Controllers.UnitTests
 {
     [TestFixture]
     public class SubtaskControllerUnitTests
     {
+        private Mock<ISubtaskService> _mockService;
         private SubtaskController _controller;
-        private MiniTaskerDbContext _context;
-        private TaskItem _task;
 
         [SetUp]
         public void Setup()
         {
-            var options = new DbContextOptionsBuilder<MiniTaskerDbContext>()
-                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-                .Options;
+            _mockService = new Mock<ISubtaskService>();
+            _controller = new SubtaskController(_mockService.Object);
+        }
 
-            _context = new MiniTaskerDbContext(options);
-
-            _task = new TaskItem
+        [Test]
+        public async Task GetSubtasks_ReturnsOkWithSubtasks()
+        {
+            var subtasks = new List<SubtaskDto>
             {
-                Id = 1,
-                Title = "Main Task",
-                Description = "Main Task Description",
-                Status = mt_backend.Models.TaskStatus.Pending,
-                DueDate = DateTime.UtcNow.AddDays(7)
+                new SubtaskDto { Id = 1, Title = "Subtask 1", IsCompleted = false }
             };
 
-            _context.Tasks.Add(_task);
-            _context.SaveChanges();
+            _mockService.Setup(s => s.GetSubtasksAsync(1)).ReturnsAsync(subtasks);
 
-            _controller = new SubtaskController(_context);
-        }
-
-        [TearDown]
-        public void TearDown()
-        {
-            _context.Dispose();
-        }
-
-        [Test]
-        public async Task GetSubtasks_ReturnsSubtasks()
-        {
-            _context.Subtasks.Add(new Subtask { Title = "Subtask 1", IsCompleted = false, TaskId = _task.Id });
-            _context.SaveChanges();
-
-            var result = await _controller.GetSubtasks(_task.Id);
+            var result = await _controller.GetSubtasks(1);
             Assert.IsInstanceOf<OkObjectResult>(result.Result);
-            var subtasks = (result.Result as OkObjectResult).Value as IEnumerable<SubtaskDto>;
-            Assert.IsNotEmpty(subtasks);
+            var value = (result.Result as OkObjectResult).Value as IEnumerable<SubtaskDto>;
+            Assert.AreEqual(1, value.Count());
         }
 
         [Test]
-        public async Task CreateSubtask_ValidTaskId_CreatesSubtask()
+        public async Task CreateSubtask_ReturnsCreatedAtAction()
         {
             var dto = new CreateSubtaskDto { Title = "New Subtask" };
-            var result = await _controller.CreateSubtask(_task.Id, dto);
+            var created = new SubtaskDto { Id = 1, Title = "New Subtask", IsCompleted = false };
 
+            _mockService.Setup(s => s.CreateSubtaskAsync(1, dto)).ReturnsAsync(created);
+
+            var result = await _controller.CreateSubtask(1, dto);
             Assert.IsInstanceOf<CreatedAtActionResult>(result.Result);
-            var subtask = (result.Result as CreatedAtActionResult).Value as SubtaskDto;
-            Assert.AreEqual("New Subtask", subtask.Title);
         }
 
         [Test]
-        public async Task MarkSubtaskCompleted_ValidId_UpdatesStatus()
+        public async Task MarkSubtaskCompleted_ReturnsOk()
         {
-            var subtask = new Subtask { Title = "Subtask", IsCompleted = false, TaskId = _task.Id };
-            _context.Subtasks.Add(subtask);
-            _context.SaveChanges();
+            var updated = new SubtaskDto { Id = 1, Title = "Done", IsCompleted = true };
 
-            var result = await _controller.MarkSubtaskCompleted(_task.Id, subtask.Id);
+            _mockService.Setup(s => s.MarkSubtaskCompletedAsync(1, 1)).ReturnsAsync(updated);
+
+            var result = await _controller.MarkSubtaskCompleted(1, 1);
             Assert.IsInstanceOf<OkObjectResult>(result);
-            var response = (result as OkObjectResult).Value;
-            Assert.IsTrue(subtask.IsCompleted);
         }
 
         [Test]
-        public async Task UpdateSubtask_ValidId_UpdatesTitle()
+        public async Task UpdateSubtask_ReturnsOk()
         {
-            var subtask = new Subtask { Title = "Old Title", IsCompleted = false, TaskId = _task.Id };
-            _context.Subtasks.Add(subtask);
-            _context.SaveChanges();
+            var dto = new CreateSubtaskDto { Title = "Updated" };
+            var updated = new SubtaskDto { Id = 1, Title = "Updated", IsCompleted = false };
 
-            var dto = new CreateSubtaskDto { Title = "Updated Title" };
-            var result = await _controller.UpdateSubtask(_task.Id, subtask.Id, dto);
+            _mockService.Setup(s => s.UpdateSubtaskAsync(1, 1, dto)).ReturnsAsync(updated);
 
+            var result = await _controller.UpdateSubtask(1, 1, dto);
             Assert.IsInstanceOf<OkObjectResult>(result);
-            Assert.AreEqual("Updated Title", subtask.Title);
         }
 
         [Test]
-        public async Task DeleteSubtask_ValidId_DeletesSubtask()
+        public async Task DeleteSubtask_ReturnsOk()
         {
-            var subtask = new Subtask { Title = "To Delete", IsCompleted = false, TaskId = _task.Id };
-            _context.Subtasks.Add(subtask);
-            _context.SaveChanges();
+            _mockService.Setup(s => s.DeleteSubtaskAsync(1, 1)).ReturnsAsync(true);
 
-            var result = await _controller.DeleteSubtask(_task.Id, subtask.Id);
+            var result = await _controller.DeleteSubtask(1, 1);
             Assert.IsInstanceOf<OkObjectResult>(result);
-            Assert.IsNull(await _context.Subtasks.FindAsync(subtask.Id));
         }
     }
 }

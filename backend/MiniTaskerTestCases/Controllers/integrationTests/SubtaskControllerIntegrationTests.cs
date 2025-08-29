@@ -1,4 +1,3 @@
-
 using NUnit.Framework;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -6,12 +5,14 @@ using mt_backend.Controllers;
 using mt_backend.Data;
 using mt_backend.Models;
 using mt_backend.DTOs;
+using mt_backend.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TaskStatus = mt_backend.Models.TaskStatus;
 
-namespace MiniTasker.Tests.Controllers.integrationTests
+namespace MiniTasker.Tests.Controllers.IntegrationTests
 {
     [TestFixture]
     public class SubtaskControllerIntegrationTests
@@ -34,14 +35,15 @@ namespace MiniTasker.Tests.Controllers.integrationTests
                 Id = 1,
                 Title = "Main Task",
                 Description = "Main Task Description",
-                Status = mt_backend.Models.TaskStatus.Pending,
+                Status = TaskStatus.Pending,
                 DueDate = DateTime.UtcNow.AddDays(7)
             };
 
             _context.Tasks.Add(_task);
             _context.SaveChanges();
 
-            _controller = new SubtaskController(_context);
+            var subtaskService = new SubtaskService(_context);
+            _controller = new SubtaskController(subtaskService);
         }
 
         [TearDown]

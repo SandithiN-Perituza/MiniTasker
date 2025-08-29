@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using mt_backend.Data;
 using mt_backend.DTOs;
-using mt_backend.Models;
+using mt_backend.Services.Interfaces;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace mt_backend.Controllers
 {
@@ -10,109 +10,48 @@ namespace mt_backend.Controllers
     [Route("api/tasks/{taskId}/[controller]")]
     public class CommentController : ControllerBase
     {
-        private readonly MiniTaskerDbContext _context;
+        private readonly ICommentService _commentService;
 
-        public CommentController(MiniTaskerDbContext context)
+        public CommentController(ICommentService commentService)
         {
-            _context = context;
+            _commentService = commentService;
         }
 
-        // GET: api/tasks/{taskId}/comment
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<CommentDto>>> GetComments(int taskId)
+        public async Task<ActionResult<IEnumerable<CommentResponseDto>>> GetComments(int taskId)
         {
-            var comments = await _context.Comments
-                .Where(c => c.TaskId == taskId)
-                .Include(c => c.User)
-                .OrderByDescending(c => c.CreatedAt)
-                .Select(c => new CommentResponseDto
-                {
-                    Id = c.Id,
-                    TaskId = c.TaskId,
-                    UserId = c.UserId,
-                    UserName = c.User.Name,
-                    Content = c.Content,
-                    CreatedAt = c.CreatedAt
-                })
-                .ToListAsync();
-
+            var comments = await _commentService.GetCommentsAsync(taskId);
             return Ok(comments);
         }
 
-        // POST: api/tasks/{taskId}/comment
         [HttpPost]
-        public async Task<ActionResult<Comment>> AddComment(int taskId, [FromBody] CommentDto dto)
+        public async Task<ActionResult<CommentResponseDto>> AddComment(int taskId, [FromBody] CommentDto dto)
         {
-            var task = await _context.Tasks.FindAsync(taskId);
-            if (task == null)
-                return NotFound("Task not found.");
+            var comment = await _commentService.AddCommentAsync(taskId, dto);
+            if (comment == null)
+                return NotFound("Task or User not found.");
 
-            var user = await _context.Users.FindAsync(dto.UserId);
-            if (user == null)
-                return NotFound("User not found.");
-
-            var comment = new Comment
-            {
-                TaskId = taskId,
-                UserId = dto.UserId,
-                Content = dto.Content,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Comments.Add(comment);
-            await _context.SaveChangesAsync();
-
-            var responseDto = new CommentResponseDto
-            {
-                Id = comment.Id,
-                TaskId = comment.TaskId,
-                UserId = comment.UserId,
-                UserName = user.Name,
-                Content = comment.Content,
-                CreatedAt = comment.CreatedAt
-            };
-
-            return Ok(new { message = "Comment created Successfully", comment = responseDto });
+            return Ok(new { message = "Comment created Successfully", comment });
         }
 
-
-        // PUT: api/tasks/{taskId}/comment/{commentId}
         [HttpPut("{commentId}")]
         public async Task<IActionResult> UpdateComment(int taskId, int commentId, [FromBody] CommentDto dto)
         {
-            var comment = await _context.Comments
-                .FirstOrDefaultAsync(c => c.Id == commentId && c.TaskId == taskId);
-
-            if (comment == null)
+            var updated = await _commentService.UpdateCommentAsync(taskId, commentId, dto);
+            if (updated == null)
                 return NotFound("Comment not found.");
 
-            comment.Content = dto.Content;
-            comment.CreatedAt = DateTime.UtcNow; // Optional: update timestamp
-
-            await _context.SaveChangesAsync();
-
-            return Ok(new { message = "Comment Updated Successfully", comment });
+            return Ok(new { message = "Comment Updated Successfully", comment = updated });
         }
 
-
-        // DELETE: api/tasks/{taskId}/comment/{commentId}
         [HttpDelete("{commentId}")]
         public async Task<IActionResult> DeleteComment(int taskId, int commentId)
         {
-            var comment = await _context.Comments
-                .FirstOrDefaultAsync(c => c.Id == commentId && c.TaskId == taskId);
-
-            if (comment == null)
+            var success = await _commentService.DeleteCommentAsync(taskId, commentId);
+            if (!success)
                 return NotFound("Comment not found.");
-
-            _context.Comments.Remove(comment);
-            await _context.SaveChangesAsync();
 
             return Ok("Comment Deleted Successfully");
         }
-
-        // GET: api/tasks/{taskId}/comment/{commentId}
-
-
     }
 }

@@ -1,4 +1,3 @@
-
 using NUnit.Framework;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -6,18 +5,21 @@ using mt_backend.Controllers;
 using mt_backend.Data;
 using mt_backend.Models;
 using mt_backend.DTOs;
+using mt_backend.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TaskStatus = mt_backend.Models.TaskStatus;
 
-namespace MiniTasker.Tests.Controllers.integrationTests
+namespace MiniTasker.Tests.Controllers.IntegrationTests
 {
     [TestFixture]
     public class TasksControllerIntegrationTests
     {
         private TasksController _controller;
         private MiniTaskerDbContext _context;
+        private ITaskService _taskService;
 
         [SetUp]
         public void Setup()
@@ -27,8 +29,8 @@ namespace MiniTasker.Tests.Controllers.integrationTests
                 .Options;
 
             _context = new MiniTaskerDbContext(options);
-
-            _controller = new TasksController(_context);
+            _taskService = new TaskService(_context);
+            _controller = new TasksController(_taskService);
         }
 
         [TearDown]
@@ -44,7 +46,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests
             {
                 Title = "Integration Task",
                 Description = "Task Description",
-                Status = mt_backend.Models.TaskStatus.Pending,
+                Status = TaskStatus.Pending,
                 DueDate = DateTime.UtcNow.AddDays(5)
             };
 
@@ -64,7 +66,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests
             {
                 Title = "Old Title",
                 Description = "Old Description",
-                Status = mt_backend.Models.TaskStatus.Pending,
+                Status = TaskStatus.Pending,
                 DueDate = DateTime.UtcNow.AddDays(5)
             };
             _context.Tasks.Add(task);
@@ -75,7 +77,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests
                 Id = task.Id,
                 Title = "Updated Title",
                 Description = "Updated Description",
-                Status = mt_backend.Models.TaskStatus.Complete,
+                Status = TaskStatus.Complete,
                 DueDate = DateTime.UtcNow.AddDays(10)
             };
 
@@ -93,7 +95,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests
             {
                 Title = "To Delete",
                 Description = "Delete Description",
-                Status = mt_backend.Models.TaskStatus.Pending,
+                Status = TaskStatus.Pending,
                 DueDate = DateTime.UtcNow.AddDays(5)
             };
             _context.Tasks.Add(task);
@@ -113,7 +115,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests
             {
                 Title = "Find Me",
                 Description = "Find Description",
-                Status = mt_backend.Models.TaskStatus.Pending,
+                Status = TaskStatus.Pending,
                 DueDate = DateTime.UtcNow.AddDays(5)
             };
             _context.Tasks.Add(task);

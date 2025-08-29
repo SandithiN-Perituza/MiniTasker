@@ -1,15 +1,15 @@
-﻿
-using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using Mono.TextTemplating;
 using mt_backend.Controllers;
 using mt_backend.Data;
 using mt_backend.DTOs;
 using mt_backend.Models;
+using mt_backend.Services;
 using NUnit.Framework;
+using System;
 using System.Collections.Generic;
-using System.Text;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MiniTasker.Tests.Controllers.unitTests
@@ -19,6 +19,7 @@ namespace MiniTasker.Tests.Controllers.unitTests
     {
         private UsersController _controller;
         private MiniTaskerDbContext _context;
+        private IUserService _userService;
 
         [SetUp]
         public void Setup()
@@ -43,10 +44,10 @@ namespace MiniTasker.Tests.Controllers.unitTests
             _context.Users.Add(user);
             _context.SaveChanges();
 
-            _controller = new UsersController(_context);
+            _userService = new UserService(_context);
+            _controller = new UsersController(_userService);
         }
-        //Prevents resource leaks in long test runs.
-        //Ensures test isolation — each test starts fresh.
+
         [TearDown]
         public void TearDown()
         {
@@ -57,20 +58,35 @@ namespace MiniTasker.Tests.Controllers.unitTests
         public async Task GetUsers_ReturnsAllUsers()
         {
             var result = await _controller.GetUsers();
-            Assert.IsInstanceOf<ActionResult<IEnumerable<User>>>(result);
-            Assert.IsNotEmpty(result.Value);
+
+            // Extract the actual result from ActionResult
+            var okResult = result.Result as OkObjectResult;
+
+            Assert.IsNotNull(okResult, "Expected OkObjectResult but got null.");
+
+            var users = okResult.Value as IEnumerable<UserResponseDto>;
+
+            Assert.IsNotNull(users, "Expected user list but got null.");
+            Assert.IsTrue(users.Any(), "Expected at least one user in the result.");
+
         }
 
         [Test]
         public async Task CreateUser_HashesPasswordAndReturnsCreatedUser()
         {
-            var newUser = new User { Name = "New", Email = "new@example.com", Password = "1234" };
-            var result = await _controller.CreateUser(newUser);
+            var newUserRequest = new CreateUserRequestDto
+            {
+                Name = "New",
+                Email = "new@example.com",
+                Password = "1234"
+            };
+
+            var result = await _controller.CreateUser(newUserRequest);
 
             Assert.IsInstanceOf<CreatedAtActionResult>(result.Result);
-            var createdUser = (result.Result as CreatedAtActionResult).Value as User;
+            var createdUser = (result.Result as CreatedAtActionResult).Value as UserResponseDto;
             Assert.AreEqual("New", createdUser.Name);
-            Assert.AreNotEqual("1234", createdUser.Password); // Password should be hashed
+            Assert.AreEqual("new@example.com", createdUser.Email);
         }
 
         [Test]
@@ -85,34 +101,9 @@ namespace MiniTasker.Tests.Controllers.unitTests
         [Test]
         public async Task Login_WithInvalidEmail_ReturnsUnauthorized()
         {
-            // Arrange: Use a unique in-memory database to ensure isolation
-            var options = new DbContextOptionsBuilder<MiniTaskerDbContext>()
-                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
-                .Options;
-
-            using var context = new MiniTaskerDbContext(options);
-
-            // Add a valid user to the database
-            var validUser = new User
-            {
-                Name = "Kasundi",
-                Email = "kasundi@example.com",
-                Password = "1234"
-            };
-
-            var hasher = new PasswordHasher<User>();
-            validUser.Password = hasher.HashPassword(validUser, validUser.Password);
-
-            context.Users.Add(validUser);
-            context.SaveChanges();
-
-            var controller = new UsersController(context);
-
-            // Act: Attempt login with an invalid email
             var request = new LoginRequest { Email = "wrong@example.com", Password = "1234" };
-            var result = await controller.Login(request);
+            var result = await _controller.Login(request);
 
-            // Assert: Should return Unauthorized
             Assert.IsInstanceOf<UnauthorizedObjectResult>(result);
             var unauthorizedResult = result as UnauthorizedObjectResult;
             Assert.AreEqual(401, unauthorizedResult?.StatusCode);

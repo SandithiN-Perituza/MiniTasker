@@ -1,23 +1,19 @@
-
 using NUnit.Framework;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using mt_backend.Controllers;
 using mt_backend.Data;
 using mt_backend.Models;
 using mt_backend.DTOs;
+using mt_backend.Services;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 
-namespace MiniTasker.Tests.Controllers.unitTests
+namespace MiniTasker.Tests.Services.UnitTests
 {
     [TestFixture]
-    public class CommentControllerUnitTests
+    public class CommentServiceUnitTests
     {
-        private CommentController _controller;
         private MiniTaskerDbContext _context;
+        private CommentService _service;
         private TaskItem _task;
         private User _user;
 
@@ -29,6 +25,7 @@ namespace MiniTasker.Tests.Controllers.unitTests
                 .Options;
 
             _context = new MiniTaskerDbContext(options);
+            _service = new CommentService(_context);
 
             _user = new User { Id = 1, Name = "Kasundi", Email = "kasundi@example.com", Password = "hashed" };
             _task = new TaskItem { Id = 1, Title = "Task", Description = "Task Description", DueDate = DateTime.UtcNow.AddDays(7) };
@@ -36,8 +33,6 @@ namespace MiniTasker.Tests.Controllers.unitTests
             _context.Users.Add(_user);
             _context.Tasks.Add(_task);
             _context.SaveChanges();
-
-            _controller = new CommentController(_context);
         }
 
         [TearDown]
@@ -47,51 +42,70 @@ namespace MiniTasker.Tests.Controllers.unitTests
         }
 
         [Test]
-        public async Task GetComments_ReturnsComments()
+        public async Task AddCommentAsync_ValidData_ReturnsCommentResponse()
         {
-            _context.Comments.Add(new Comment { TaskId = _task.Id, UserId = _user.Id, Content = "Test Comment", CreatedAt = DateTime.UtcNow });
+            var dto = new CommentDto { UserId = _user.Id, Content = "Test Comment" };
+
+            var result = await _service.AddCommentAsync(_task.Id, dto);
+
+            Assert.IsNotNull(result);
+            Assert.AreEqual("Test Comment", result.Content);
+        }
+
+        [Test]
+        public async Task GetCommentsAsync_ReturnsAllComments()
+        {
+            _context.Comments.Add(new Comment
+            {
+                TaskId = _task.Id,
+                UserId = _user.Id,
+                Content = "Comment 1",
+                CreatedAt = DateTime.UtcNow
+            });
             _context.SaveChanges();
 
-            var result = await _controller.GetComments(_task.Id);
-            Assert.IsInstanceOf<OkObjectResult>(result.Result);
-            var comments = (result.Result as OkObjectResult).Value as IEnumerable<CommentResponseDto>;
-            Assert.IsNotEmpty(comments);
+            var result = await _service.GetCommentsAsync(_task.Id);
+
+            Assert.IsNotNull(result);
+            Assert.IsNotEmpty(result);
         }
 
         [Test]
-        public async Task AddComment_ValidData_CreatesComment()
+        public async Task UpdateCommentAsync_ValidId_UpdatesContent()
         {
-            var dto = new CommentDto { UserId = _user.Id, Content = "New Comment" };
-            var result = await _controller.AddComment(_task.Id, dto);
-
-            Assert.IsInstanceOf<OkObjectResult>(result.Result);
-            var response = (result.Result as OkObjectResult).Value;
-            Assert.IsNotNull(response);
-        }
-
-        [Test]
-        public async Task UpdateComment_ValidId_UpdatesContent()
-        {
-            var comment = new Comment { TaskId = _task.Id, UserId = _user.Id, Content = "Old Content", CreatedAt = DateTime.UtcNow };
+            var comment = new Comment
+            {
+                TaskId = _task.Id,
+                UserId = _user.Id,
+                Content = "Old Content",
+                CreatedAt = DateTime.UtcNow
+            };
             _context.Comments.Add(comment);
             _context.SaveChanges();
 
             var dto = new CommentDto { UserId = _user.Id, Content = "Updated Content" };
-            var result = await _controller.UpdateComment(_task.Id, comment.Id, dto);
+            var result = await _service.UpdateCommentAsync(_task.Id, comment.Id, dto);
 
-            Assert.IsInstanceOf<OkObjectResult>(result);
-            Assert.AreEqual("Updated Content", comment.Content);
+            Assert.IsNotNull(result);
+            Assert.AreEqual("Updated Content", result.Content);
         }
 
         [Test]
-        public async Task DeleteComment_ValidId_DeletesComment()
+        public async Task DeleteCommentAsync_ValidId_DeletesComment()
         {
-            var comment = new Comment { TaskId = _task.Id, UserId = _user.Id, Content = "To Delete", CreatedAt = DateTime.UtcNow };
+            var comment = new Comment
+            {
+                TaskId = _task.Id,
+                UserId = _user.Id,
+                Content = "To Delete",
+                CreatedAt = DateTime.UtcNow
+            };
             _context.Comments.Add(comment);
             _context.SaveChanges();
 
-            var result = await _controller.DeleteComment(_task.Id, comment.Id);
-            Assert.IsInstanceOf<OkObjectResult>(result);
+            var result = await _service.DeleteCommentAsync(_task.Id, comment.Id);
+
+            Assert.IsTrue(result);
             Assert.IsNull(await _context.Comments.FindAsync(comment.Id));
         }
     }
