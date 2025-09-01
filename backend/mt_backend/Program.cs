@@ -21,6 +21,10 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ISubtaskService, SubtaskService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
+// Register Teams notification service
+builder.Services.AddSingleton<INotificationService>(provider =>
+    new NotificationService("https://outlook.office.com/webhook/your-webhook-url"));
+
 // Configure MySQL database context
 builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))

@@ -1,7 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 using mt_backend.DTOs;
 using mt_backend.Models;
 using mt_backend.Services;
+using mt_backend.Services.Interfaces;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -12,10 +14,11 @@ namespace mt_backend.Controllers
     public class TasksController : ControllerBase
     {
         private readonly ITaskService _taskService;
-
-        public TasksController(ITaskService taskService)
+        private readonly INotificationService _notifier;
+        public TasksController(ITaskService taskService, INotificationService notifier)
         {
             _taskService = taskService;
+            _notifier = notifier;
         }
 
         [HttpGet]
@@ -37,6 +40,10 @@ namespace mt_backend.Controllers
         public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
         {
             var createdTask = await _taskService.CreateTaskAsync(task);
+
+
+            await _notifier.SendMessageAsync($"New Task Created: **{createdTask.Title}** assigned to **{createdTask.AssignedTo}**");
+
             return CreatedAtAction(nameof(GetTaskById), new { id = createdTask.Id }, createdTask);
         }
 
@@ -46,7 +53,10 @@ namespace mt_backend.Controllers
             if (id != updatedTask.Id) return BadRequest();
 
             var task = await _taskService.UpdateTaskAsync(id, updatedTask);
+
             if (task == null) return NotFound(new { message = $"Task with ID {id} not found." });
+
+            await _notifier.SendMessageAsync($"Task Updated: **{updatedTask.Title}** assigned to **{updatedTask.AssignedTo}**");
 
             return Ok(task);
         }
@@ -54,8 +64,11 @@ namespace mt_backend.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(int id)
         {
+            var deletedTask = await _taskService.GetTaskByIdAsync(id);
             var success = await _taskService.DeleteTaskAsync(id);
             if (!success) return NotFound();
+
+            await _notifier.SendMessageAsync($"Task with Id: {deletedTask.Id} and title {deletedTask.Title} is deleted");
 
             return Ok(new { message = $"Task with ID {id} is deleted successfully" });
         }
