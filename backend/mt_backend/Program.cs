@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using mt_backend.Data;
 using mt_backend.Services;
 using mt_backend.Services.Interfaces;
+using MySql.EntityFrameworkCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,13 +22,17 @@ builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ISubtaskService, SubtaskService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 
+// Configure MSSQL database context
+//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
+//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+//);
 // Register Teams notification service
 builder.Services.AddSingleton<INotificationService>(provider =>
     new NotificationService("https://outlook.office.com/webhook/your-webhook-url"));
 
 // Configure MySQL database context
 builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+    options.UseMySQL(builder.Configuration.GetConnectionString("DefaultConnection"))
 );
 
 builder.Services.AddCors(options =>
