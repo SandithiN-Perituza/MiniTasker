@@ -1,6 +1,6 @@
 export default function Header({ onMenuClick }) {
   return (
-    <header className="bg-blue-600 text-white p-4 flex items-center justify-between">
+    <header className="bg-blue-700 text-white p-4 flex items-center justify-between">
       <button
         className="mr-2 focus:outline-none"
         onClick={onMenuClick}

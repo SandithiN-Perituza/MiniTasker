@@ -1,4 +1,5 @@
-const API_URL = "https://localhost:7296/api";
+// const API_URL = "https://localhost:7296/api";
+const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net/api";
 
 // Tasks
 // Fetch all tasks

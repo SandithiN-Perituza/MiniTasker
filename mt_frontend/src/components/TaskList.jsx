@@ -238,7 +238,7 @@ export default function TaskList() {
             task.status !== "Complete";
 
           const taskBgColor = isOverdue
-            ? "bg-red-200"
+            ? "bg-rose-200"
             : statusColors[task.status];
           return (
             <li
