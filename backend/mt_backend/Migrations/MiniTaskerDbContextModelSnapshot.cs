@@ -2,7 +2,6 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using mt_backend.Data;
 
@@ -17,10 +16,8 @@ namespace mt_backend.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.11")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
-
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+                .HasAnnotation("ProductVersion", "8.0.17")
+                .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             modelBuilder.Entity("mt_backend.Models.Comment", b =>
                 {
@@ -28,14 +25,12 @@ namespace mt_backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
                     b.Property<string>("Content")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime");
 
                     b.Property<int>("TaskId")
                         .HasColumnType("int");
@@ -58,17 +53,15 @@ namespace mt_backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
                     b.Property<bool>("IsCompleted")
-                        .HasColumnType("bit");
+                        .HasColumnType("tinyint(1)");
 
                     b.Property<int>("TaskId")
                         .HasColumnType("int");
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(255)");
 
                     b.HasKey("Id");
 
@@ -83,29 +76,27 @@ namespace mt_backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
                     b.Property<int?>("AssignedTo")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime");
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("DueDate")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
                     b.Property<string>("Title")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime");
 
                     b.HasKey("Id");
 
@@ -118,67 +109,67 @@ namespace mt_backend.Migrations
                         {
                             Id = 1,
                             AssignedTo = 1,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4041),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4555),
                             Description = "First task",
                             DueDate = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
                             Status = 0,
                             Title = "Sample Task",
-                            UpdatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4042)
+                            UpdatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4556)
                         },
                         new
                         {
                             Id = 2,
                             AssignedTo = 2,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4086),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4561),
                             Description = "Second task",
-                            DueDate = new DateTime(2025, 8, 28, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4087),
+                            DueDate = new DateTime(2025, 9, 5, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4562),
                             Status = 1,
                             Title = "Sample Task 2",
-                            UpdatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4087)
+                            UpdatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4562)
                         },
                         new
                         {
                             Id = 3,
                             AssignedTo = 3,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4095),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4574),
                             Description = "Third task",
-                            DueDate = new DateTime(2025, 8, 28, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4096),
+                            DueDate = new DateTime(2025, 9, 5, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4576),
                             Status = 2,
                             Title = "Sample Task 3",
-                            UpdatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4095)
+                            UpdatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4575)
                         },
                         new
                         {
                             Id = 4,
                             AssignedTo = 4,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4098),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4580),
                             Description = "Fourth task",
-                            DueDate = new DateTime(2025, 8, 28, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4098),
+                            DueDate = new DateTime(2025, 9, 5, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4582),
                             Status = 1,
                             Title = "Sample Task 4",
-                            UpdatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4098)
+                            UpdatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4581)
                         },
                         new
                         {
                             Id = 5,
                             AssignedTo = 5,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4100),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4586),
                             Description = "Fifth task",
-                            DueDate = new DateTime(2025, 8, 28, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4101),
+                            DueDate = new DateTime(2025, 9, 5, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4587),
                             Status = 0,
                             Title = "Sample Task 5",
-                            UpdatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4100)
+                            UpdatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4587)
                         },
                         new
                         {
                             Id = 6,
                             AssignedTo = 1,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4103),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4591),
                             Description = "sixth task",
-                            DueDate = new DateTime(2025, 8, 28, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4103),
+                            DueDate = new DateTime(2025, 9, 5, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4593),
                             Status = 1,
                             Title = "Sample Task 6",
-                            UpdatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(4103)
+                            UpdatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 428, DateTimeKind.Utc).AddTicks(4592)
                         });
                 });
 
@@ -188,22 +179,20 @@ namespace mt_backend.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("datetime");
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(255)");
 
                     b.Property<string>("Password")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(255)");
 
                     b.HasKey("Id");
 
@@ -213,7 +202,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(2229),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 427, DateTimeKind.Utc).AddTicks(9598),
                             Email = "alice@example.com",
                             Name = "Alice",
                             Password = "hashed-password-1"
@@ -221,7 +210,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(2232),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 427, DateTimeKind.Utc).AddTicks(9603),
                             Email = "bob@example.com",
                             Name = "Bob",
                             Password = "hashed-password-1"
@@ -229,7 +218,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(2233),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 427, DateTimeKind.Utc).AddTicks(9606),
                             Email = "anne@example.com",
                             Name = "Anne",
                             Password = "hashed-password-1"
@@ -237,7 +226,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 4,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(2235),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 427, DateTimeKind.Utc).AddTicks(9609),
                             Email = "peter@example.com",
                             Name = "Peter",
                             Password = "hashed-password-1"
@@ -245,7 +234,7 @@ namespace mt_backend.Migrations
                         new
                         {
                             Id = 5,
-                            CreatedAt = new DateTime(2025, 8, 21, 3, 43, 6, 175, DateTimeKind.Utc).AddTicks(2236),
+                            CreatedAt = new DateTime(2025, 8, 29, 11, 55, 38, 427, DateTimeKind.Utc).AddTicks(9612),
                             Email = "jenny@example.com",
                             Name = "Jenny",
                             Password = "hashed-password-1"
