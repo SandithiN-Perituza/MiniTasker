@@ -9,6 +9,8 @@ namespace mt_backend.Services
     public class UserService : IUserService
     {
         private readonly MiniTaskerDbContext _context;
+
+        //PasswordHasher - provided by Microsoft.AspNetCore.Identity
         private readonly PasswordHasher<User> _hasher = new();
 
         public UserService(MiniTaskerDbContext context)
@@ -23,11 +25,16 @@ namespace mt_backend.Services
 
         public async Task<User> CreateUserAsync(User user)
         {
-            user.Password = _hasher.HashPassword(user, user.Password);
+            if (!string.IsNullOrEmpty(user.Password))
+            {
+                user.Password = _hasher.HashPassword(user, user.Password);
+            }
+
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
             return user;
         }
+
 
         public async Task<User?> LoginAsync(LoginRequest request)
         {

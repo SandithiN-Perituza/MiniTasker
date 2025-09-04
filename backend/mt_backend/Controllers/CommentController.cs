@@ -8,6 +8,8 @@ namespace mt_backend.Controllers
 {
     [ApiController]
     [Route("api/tasks/{taskId}/[controller]")]
+    //This protects all actions in this controller
+    //[Authorize] 
     public class CommentController : ControllerBase
     {
         private readonly ICommentService _commentService;

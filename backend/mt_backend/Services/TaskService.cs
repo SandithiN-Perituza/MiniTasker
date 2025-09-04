@@ -34,7 +34,7 @@ namespace mt_backend.Services
                 .ToListAsync();
         }
 
-        public async Task<TaskItemDto> GetTaskByIdAsync(int id)
+        public async Task<TaskItemDto?> GetTaskByIdAsync(int id)
         {
             return await _context.Tasks
                 .Include(t => t.AssignedUser)

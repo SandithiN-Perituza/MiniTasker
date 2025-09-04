@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 
 [ApiController]
 [Route("api/tasks/{taskId}/[controller]")]
+//This protects all actions in this controller
+//[Authorize] 
 public class SubtaskController : ControllerBase
 {
     private readonly ISubtaskService _subtaskService;
