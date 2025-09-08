@@ -2,11 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using mt_backend.DTOs;
 using mt_backend.Models;
-using mt_backend.Services;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace mt_backend.Controllers
 {
@@ -42,7 +38,7 @@ namespace mt_backend.Controllers
         // POST: api/users
         [HttpPost]
         // This allows login without authentication
-        [AllowAnonymous] 
+        [AllowAnonymous]
         public async Task<ActionResult<UserResponseDto>> CreateUser([FromBody] CreateUserRequestDto request)
         {
             var newUser = new User
@@ -67,7 +63,7 @@ namespace mt_backend.Controllers
         // POST: api/users/login
         [HttpPost("login")]
         // This allows login without authentication
-        [AllowAnonymous] 
+        [AllowAnonymous]
         public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
             var user = await _userService.LoginAsync(request);
@@ -85,14 +81,94 @@ namespace mt_backend.Controllers
             return Ok(response);
         }
 
+        //// /api/users/msal-login
+        //[Authorize]
+        //[HttpPost("msal-login")]
+        //public async Task<IActionResult> SaveMsalUser()
+        //{
+        //    var azureAdId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        //    //var name = User.FindFirstValue(ClaimTypes.Name);
+        //    //var email = User.FindFirstValue(ClaimTypes.Email);
+        //    var displayName = User.FindFirst("name")?.Value;                // Full name
+        //    var email = User.FindFirst("preferred_username")?.Value
+        //              ?? User.FindFirst("email")?.Value;
+
+
+        //    if (string.IsNullOrEmpty(azureAdId))
+        //        return BadRequest("Missing Azure AD ID.");
+
+        //    var existingUser = (await _userService.GetUsersAsync())
+        //        .FirstOrDefault(u => u.AzureAdId == azureAdId);
+
+        //    if (existingUser == null)
+        //    {
+        //        var newUser = new User
+        //        {
+        //            AzureAdId = azureAdId,
+        //            Name = displayName ?? "Unknown",
+        //            Email = email ?? "unknown@domain.com",
+        //            Password = "", // Not used for MSAL users
+        //            CreatedAt = DateTime.UtcNow
+        //        };
+
+        //        await _userService.CreateUserAsync(newUser);
+        //    }
+        //    Console.WriteLine($"Authenticated user: {User.Identity.Name}");
+        //    return Ok("Microsoft user saved.");
+
+        //}
+
         // /api/users/msal-login
+        //[Authorize]
+        //[HttpPost("msal-login")]
+        //public async Task<IActionResult> SaveMsalUser()
+        //{
+        //    var azureAdId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        //    var displayName = User.FindFirst("name")?.Value;                // Full name
+        //    var email = User.FindFirst("preferred_username")?.Value
+        //              ?? User.FindFirst("email")?.Value;
+
+        //    if (string.IsNullOrEmpty(azureAdId))
+        //        return BadRequest("Missing Azure AD ID.");
+
+        //    var existingUser = (await _userService.GetUsersAsync())
+        //        .FirstOrDefault(u => u.AzureAdId == azureAdId);
+
+        //    User userToReturn = existingUser;
+
+        //    if (existingUser == null)
+        //    {
+        //        var newUser = new User
+        //        {
+        //            AzureAdId = azureAdId,
+        //            Name = displayName ?? "Unknown",
+        //            Email = email ?? "unknown@domain.com",
+        //            Password = "", // Not used for MSAL users
+        //            CreatedAt = DateTime.UtcNow
+        //        };
+
+        //        await _userService.CreateUserAsync(newUser);
+        //        userToReturn = newUser;
+        //    }
+
+        //    Console.WriteLine($"Authenticated user: {User.Identity.Name}");
+        //    return Ok(userToReturn);
+        //}
+
         [Authorize]
         [HttpPost("msal-login")]
-        public async Task<IActionResult> SaveMsalUser()
+        public async Task<IActionResult> SaveMsalUser([FromQuery] bool saveUser = true)
         {
             var azureAdId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            var name = User.FindFirstValue(ClaimTypes.Name);
-            var email = User.FindFirstValue(ClaimTypes.Email);
+            var userAgent = Request.Headers["User-Agent"].ToString();
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
+
+            Console.WriteLine($"saveUser: {saveUser}, AzureAdId: {azureAdId}");
+            Console.WriteLine($"Request from IP: {ipAddress}, User-Agent {userAgent}");
+
+            var displayName = User.FindFirst("name")?.Value;
+            var email = User.FindFirst("preferred_username")?.Value
+                      ?? User.FindFirst("email")?.Value;
 
             if (string.IsNullOrEmpty(azureAdId))
                 return BadRequest("Missing Azure AD ID.");
@@ -100,23 +176,36 @@ namespace mt_backend.Controllers
             var existingUser = (await _userService.GetUsersAsync())
                 .FirstOrDefault(u => u.AzureAdId == azureAdId);
 
+            if (!saveUser)
+            {
+                if (existingUser != null)
+                    return Ok(existingUser);
+                else
+                    return Ok(new { Message = "User not saved." });
+            }
+
+            User userToReturn = existingUser;
+
             if (existingUser == null)
             {
                 var newUser = new User
                 {
                     AzureAdId = azureAdId,
-                    Name = name ?? "Unknown",
+                    Name = displayName ?? "Unknown",
                     Email = email ?? "unknown@domain.com",
-                    Password = "", // Not used for MSAL users
+                    Password = "",
                     CreatedAt = DateTime.UtcNow
                 };
 
                 await _userService.CreateUserAsync(newUser);
+                userToReturn = newUser;
             }
-            Console.WriteLine($"Authenticated user: {User.Identity.Name}");
-            return Ok("Microsoft user saved.");
 
+            Console.WriteLine($"Authenticated user: {User.Identity.Name}");
+            return Ok(userToReturn);
         }
+
+
 
 
     }
