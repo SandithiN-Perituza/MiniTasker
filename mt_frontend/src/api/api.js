@@ -70,6 +70,19 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
+// Login
+// export async function loginMicrosoftUser(email, password) {
+//   console.log("Logging in with(inside api.js):", { email, password });
+//   console.log("API URL:", API_URL);
+//   const res = await fetch(`${API_URL}/users/login`, {
+//     method: "POST",
+//     headers: { "Content-Type": "application/json" },
+//     body: JSON.stringify({ email, password }),
+//   });
+//   if (!res.ok) return null;
+//   return res.json();
+// }
+
 // Comments
 // Fetch comments for a task
 export async function fetchComments(taskId) {
