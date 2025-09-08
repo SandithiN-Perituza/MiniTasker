@@ -2,12 +2,13 @@ import React from "react";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
 import { loginMicrosoftUser } from "../api/api";
-
+import { useNavigate } from "react-router-dom";
 export default function MicrosoftLoginButton() {
   const { instance } = useMsal();
-
+  const navigate = useNavigate()
   const handleMicrosoftLogin = async () => {
     try {
+      console.log("Inside microsoft login button");
       // Step 1: Login with Microsoft
       const loginResponse = await instance.loginPopup(loginRequest);
       const account = loginResponse.account;
@@ -28,6 +29,7 @@ export default function MicrosoftLoginButton() {
       if (user) {
         localStorage.setItem("user", JSON.stringify(user));
         console.log("Microsoft user logged in:", user);
+        navigate("/");
       } else {
         console.error("Failed to save Microsoft user.");
       }
