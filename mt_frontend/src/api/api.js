@@ -82,16 +82,23 @@ export async function loginMicrosoftUser(accessToken) {
   });
 
   if (!res.ok) {
-    console.error("Failed to login Microsoft user");
-    return null;
+    try {
+      const errorText = await res.text(); // ✅ Read once
+      console.error("Failed to login Microsoft user:", errorText);
+      return { error: errorText };
+    } catch (err) {
+      console.error("Failed to read error response:", err);
+      return { error: "Unknown error" };
+    }
   }
 
   try {
-    return await res.json();
-  } catch {
-    const text = await res.text();
-    return { message: text };
+    return await res.json(); // ✅ Only read once
+  } catch (err) {
+    console.error("Failed to parse JSON:", err);
+    return { error: "Invalid JSON response" };
   }
+
 }
 
 
