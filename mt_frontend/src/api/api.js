@@ -70,18 +70,31 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
-// Login
-// export async function loginMicrosoftUser(email, password) {
-//   console.log("Logging in with(inside api.js):", { email, password });
-//   console.log("API URL:", API_URL);
-//   const res = await fetch(`${API_URL}/users/login`, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify({ email, password }),
-//   });
-//   if (!res.ok) return null;
-//   return res.json();
-// }
+
+// Microsoft Login
+
+export async function loginMicrosoftUser(accessToken) {
+  const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!res.ok) {
+    console.error("Failed to login Microsoft user");
+    return null;
+  }
+
+  try {
+    return await res.json();
+  } catch {
+    const text = await res.text();
+    return { message: text };
+  }
+}
+
+
 
 // Comments
 // Fetch comments for a task

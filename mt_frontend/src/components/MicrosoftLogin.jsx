@@ -1,12 +1,39 @@
 import React from "react";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
+import { loginMicrosoftUser } from "../api/api";
 
 export default function MicrosoftLoginButton() {
   const { instance } = useMsal();
 
-  const handleMicrosoftLogin = () => {
-    instance.loginRedirect(loginRequest);
+  const handleMicrosoftLogin = async () => {
+    try {
+      // Step 1: Login with Microsoft
+      const loginResponse = await instance.loginPopup(loginRequest);
+      const account = loginResponse.account;
+
+      // Step 2: Acquire token silently
+      const tokenResponse = await instance.acquireTokenSilent({
+        ...loginRequest,
+        account,
+      });
+
+      const accessToken = tokenResponse.accessToken;
+
+      console.log("Access Token:", tokenResponse.accessToken)
+      console.log("Access Token 2 stored:", accessToken)
+      // Step 3: Send token to backend
+      const user = await loginMicrosoftUser(accessToken);
+
+      if (user) {
+        localStorage.setItem("user", JSON.stringify(user));
+        console.log("Microsoft user logged in:", user);
+      } else {
+        console.error("Failed to save Microsoft user.");
+      }
+    } catch (error) {
+      console.error("Microsoft login error:", error);
+    }
   };
 
   return (
@@ -18,6 +45,27 @@ export default function MicrosoftLoginButton() {
     </button>
   );
 }
+
+// import React from "react";
+// import { useMsal } from "@azure/msal-react";
+// import { loginRequest } from "../authConfig";
+
+// export default function MicrosoftLoginButton() {
+//   const { instance } = useMsal();
+
+//   const handleMicrosoftLogin = () => {
+//     instance.loginRedirect(loginRequest);
+//   };
+
+//   return (
+//     <button
+//       className="py-2 px-4 rounded hover:bg-blue-100 text-left"
+//       onClick={handleMicrosoftLogin}
+//     >
+//       Login with Microsoft
+//     </button>
+//   );
+// }
 
 // import React, { useEffect, useState } from "react";
 // import { useMsal } from "@azure/msal-react";
