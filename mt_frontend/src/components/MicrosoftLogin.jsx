@@ -3,9 +3,12 @@ import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
 import { loginMicrosoftUser } from "../api/api";
 import { useNavigate } from "react-router-dom";
+import { getMicrosoftUserId } from "../utils/tokenUtils";
+
 export default function MicrosoftLoginButton() {
   const { instance } = useMsal();
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+
   const handleMicrosoftLogin = async () => {
     try {
       console.log("Inside microsoft login button");
@@ -20,13 +23,17 @@ export default function MicrosoftLoginButton() {
       });
 
       const accessToken = tokenResponse.accessToken;
-
       console.log("Access Token:", tokenResponse.accessToken)
-      console.log("Access Token 2 stored:", accessToken)
+
+      
       // Step 3: Send token to backend
-      const user = await loginMicrosoftUser(accessToken);
+      const response = await loginMicrosoftUser(accessToken);
+      const user = response.user;
+      console.log("Backend response:", response);
+      console.log("Microsoft User :", user);
 
       if (user) {
+        localStorage.setItem("accessToken", accessToken);
         localStorage.setItem("user", JSON.stringify(user));
         console.log("Microsoft user logged in:", user);
         navigate("/");
