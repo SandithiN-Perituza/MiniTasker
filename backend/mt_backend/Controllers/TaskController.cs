@@ -6,6 +6,7 @@ using mt_backend.Models;
 using mt_backend.Services;
 using mt_backend.Services.Interfaces;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace mt_backend.Controllers
@@ -31,6 +32,19 @@ namespace mt_backend.Controllers
             var tasks = await _taskService.GetTasksAsync();
             return Ok(tasks);
         }
+
+        [Authorize]
+        [HttpGet("me")]
+        public async Task<ActionResult<IEnumerable<TaskItemDto>>> GetMyTasks()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized(new { message = "User ID not found in token." });
+
+            var tasks = await _taskService.GetTasksForUserAsync(userId);
+            return Ok(tasks);
+        }
+
 
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskItemDto>> GetTaskById(int id)

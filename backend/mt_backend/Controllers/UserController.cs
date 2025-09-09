@@ -104,10 +104,10 @@ namespace mt_backend.Controllers
             var azureAdId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             //var name = User.FindFirstValue(ClaimTypes.Name);
             //var email = User.FindFirstValue(ClaimTypes.Email);
-            var displayName = User.FindFirst("name")?.Value;                
-            var email = User.FindFirst("email")?.Value
-                      ?? User.FindFirst("upn")?.Value
-                      ?? "unknown@domain.com"; 
+            var displayName = User.FindFirst("name")?.Value;
+            //var email =  User.FindFirst("upn")?.Value
+            //          ?? "unknown@domain.com"; 
+            var email = User.FindFirst(ClaimTypes.Upn)?.Value ?? "unknown@domain.com";
 
 
             if (string.IsNullOrEmpty(azureAdId))

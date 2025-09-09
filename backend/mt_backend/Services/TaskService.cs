@@ -34,6 +34,40 @@ namespace mt_backend.Services
                 .ToListAsync();
         }
 
+
+        public async Task<IEnumerable<TaskItemDto>> GetTasksForUserAsync(string microsoftUserId)
+        {
+            // Step 1: Find the internal user by Microsoft ID
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.AzureAdId == microsoftUserId);
+
+            if (user == null)
+            {
+                return new List<TaskItemDto>(); // or throw an exception if preferred
+            }
+
+            // Step 2: Get tasks assigned to that user
+            var tasks = await _context.Tasks
+                .Where(t => t.AssignedTo == user.Id)
+                .Include(t => t.AssignedUser) // if you need user details like name
+                .ToListAsync();
+
+            // Step 3: Map to DTOs manually (since _mapper is not available)
+            var taskDtos = tasks.Select(t => new TaskItemDto
+            {
+                Id = t.Id,
+                Title = t.Title,
+                Description = t.Description,
+                Status = t.Status.ToString(),
+                AssignedTo = t.AssignedTo ?? 0,
+                AssignedUserName = t.AssignedUser?.Name
+            });
+
+            return taskDtos;
+        }
+
+
+
         public async Task<TaskItemDto?> GetTaskByIdAsync(int id)
         {
             return await _context.Tasks
