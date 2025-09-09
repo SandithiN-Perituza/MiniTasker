@@ -8,7 +8,7 @@ function isLoggedIn() {
   return !!localStorage.getItem("user");
 }
 
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ open, onClose, setRefreshTrigger }) {
   const navigate = useNavigate();
   const [isInTeams, setIsInTeams] = useState(false);
   const loggedIn = isLoggedIn();
@@ -26,6 +26,7 @@ export default function Sidebar({ open, onClose }) {
 
   function handleLogout() {
     logout();
+    setRefreshTrigger(prev => prev + 1);
     onClose();
     navigate("/login");
   }
@@ -58,7 +59,7 @@ export default function Sidebar({ open, onClose }) {
               <Link to="/signup" className="py-2 px-4 rounded hover:bg-blue-100" onClick={onClose}>
                 Signup
               </Link>
-              <MicrosoftLoginButton />
+              <MicrosoftLoginButton setRefreshTrigger={setRefreshTrigger} />
             </>
           )}
           {loggedIn && (

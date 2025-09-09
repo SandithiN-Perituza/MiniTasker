@@ -10,12 +10,13 @@ import AuthRedirectHandler from "./pages/AuthRedirectHandler";
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   return (
     <Router>
       <div className="flex flex-col min-h-screen bg-gray-50">
-        <Header onMenuClick={() => setSidebarOpen(true)} />
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <Header onMenuClick={() => setSidebarOpen(true)} refreshTrigger={refreshTrigger} />
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} setRefreshTrigger={setRefreshTrigger}/>
         
         <main className="flex-1 p-4">
           <Routes>
