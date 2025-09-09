@@ -8,6 +8,22 @@ export async function fetchTasks() {
   return res.json();
 }
 
+export async function fetchUserTasks() {
+  const token = localStorage.getItem("accessToken");
+
+  const response = await fetch(`${API_URL}/tasks/me`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch tasks");
+  }
+
+  return await response.json();
+}
+
 // Create a new task
 export async function createTask(task) {
   const res = await fetch(`${API_URL}/tasks`, {
@@ -70,9 +86,6 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
-
-// Microsoft Login
-
 export async function loginMicrosoftUser(accessToken) {
   const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
     method: "POST",
@@ -92,14 +105,39 @@ export async function loginMicrosoftUser(accessToken) {
     }
   }
 
-  try {
-    return await res.json(); // ✅ Only read once
-  } catch (err) {
-    console.error("Failed to parse JSON:", err);
-    return { error: "Invalid JSON response" };
-  }
-
+  // ✅ Return parsed JSON response
+  return await res.json(); // This includes { message, user }
 }
+
+// Microsoft Login
+
+// export async function loginMicrosoftUser(accessToken) {
+//   const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
+//     method: "POST",
+//     headers: {
+//       "Authorization": `Bearer ${accessToken}`,
+//     },
+//   });
+
+//   if (!res.ok) {
+//     try {
+//       const errorText = await res.text(); // ✅ Read once
+//       console.error("Failed to login Microsoft user:", errorText);
+//       return { error: errorText };
+//     } catch (err) {
+//       console.error("Failed to read error response:", err);
+//       return { error: "Unknown error" };
+//     }
+//   }
+
+//   try {
+//     return await res.json(); // ✅ Only read once
+//   } catch (err) {
+//     console.error("Failed to parse JSON:", err);
+//     return { error: "Invalid JSON response" };
+//   }
+
+// }
 
 
 

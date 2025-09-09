@@ -1,6 +1,6 @@
 import { loginUser, createUser, loginMicrosoftUser } from "../api/api";
-import { msalInstance, loginRequest } from "../authConfig"; 
-
+import { msalInstance, loginRequest } from "../authConfig";
+ 
 export async function login(email, password) {
   try {
     console.log("Logging in with:", { email, password });
@@ -27,7 +27,9 @@ export async function microsoftLogin() {
 
     const accessToken = tokenResponse.accessToken;
 
-    const user = await loginMicrosoftUser(accessToken); // This should return the user object now
+    const response = await loginMicrosoftUser(accessToken); // should return { message, user }
+    const user = response.user;
+
     if (user && user.azureAdId) {
       localStorage.setItem("user", JSON.stringify(user));
       return true;
@@ -39,7 +41,6 @@ export async function microsoftLogin() {
     return false;
   }
 }
-
 
 // export async function microsoftLogin() {
 //   try {
@@ -53,11 +54,12 @@ export async function microsoftLogin() {
 
 //     const accessToken = tokenResponse.accessToken;
 
-//     const user = await loginMicrosoftUser(accessToken);
-//     if (user) {
+//     const user = await loginMicrosoftUser(accessToken); // This should return the user object now
+//     if (user && user.azureAdId) {
 //       localStorage.setItem("user", JSON.stringify(user));
 //       return true;
 //     }
+
 //     return false;
 //   } catch (error) {
 //     console.error("Microsoft login failed:", error);

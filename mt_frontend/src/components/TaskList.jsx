@@ -112,6 +112,7 @@ export default function TaskList() {
             onClick={() => {
               setShowMine((prev) => !prev);
               setCurrentPage(1);
+              // loadTasks();
             }}
           >
             {showMine ? "All Tasks" : "My Tasks"}
