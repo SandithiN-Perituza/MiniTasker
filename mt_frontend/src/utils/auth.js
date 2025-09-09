@@ -1,4 +1,5 @@
-import { loginUser, createUser } from "../api/api";
+import { loginUser, createUser, loginMicrosoftUser } from "../api/api";
+import { msalInstance, loginRequest } from "../authConfig"; 
 
 export async function login(email, password) {
   try {

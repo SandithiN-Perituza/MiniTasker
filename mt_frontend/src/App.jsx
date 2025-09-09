@@ -7,6 +7,7 @@ import Signup from "./pages/Signup";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import AuthRedirectHandler from "./pages/AuthRedirectHandler";
+// import MicrosoftLoginButton from "./components/MicrosoftLogin";
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/" element={<TaskList />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
+            {/* <Route path="/auth/callback" element={<MicrosoftLoginButton />} /> */}
             <Route path="/auth/callback" element={<AuthRedirectHandler />} />
           </Routes>
         </main>
