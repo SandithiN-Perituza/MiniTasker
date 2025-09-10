@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using mt_backend.DTOs;
 using mt_backend.Models;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 
 namespace mt_backend.Controllers
@@ -139,58 +140,47 @@ namespace mt_backend.Controllers
             });
         }
 
-        //// /api/users/msal-login
-        //[Authorize]
-        //[HttpPost("msal-login")]
-        //public async Task<IActionResult> SaveMsalUser()
-        //{
-        //    Console.WriteLine("=== MSAL Login Attempt ===");
 
-        //    // Check if the user is authenticated
-        //    Console.WriteLine($"IsAuthenticated: {User.Identity.IsAuthenticated}");
-        //    Console.WriteLine($"Authenticated user name: {User.Identity.Name}");
+        [HttpPost("teams-sso-login")]
+        public async Task<IActionResult> TeamsSsoLogin([FromBody] string token)
+        {
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                var jwtToken = handler.ReadJwtToken(token);
 
+                var azureAdId = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+                var name = jwtToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+                var email = jwtToken.Claims.FirstOrDefault(c => c.Type == "upn")?.Value;
 
-        //    // Log all claims from the token
-        //    Console.WriteLine("Token Claims:");
+                if (string.IsNullOrEmpty(azureAdId))
+                    return BadRequest("Invalid token.");
 
-        //    foreach (var claim in User.Claims)
-        //    {
-        //        Console.WriteLine($" - {claim.Type}: {claim.Value}");
-        //    }
+                var existingUser = (await _userService.GetUsersAsync())
+                    .FirstOrDefault(u => u.AzureAdId == azureAdId);
 
-        //    var azureAdId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        //    //var name = User.FindFirstValue(ClaimTypes.Name);
-        //    //var email = User.FindFirstValue(ClaimTypes.Email);
-        //    var displayName = User.FindFirst("name")?.Value;
-        //    //var email =  User.FindFirst("upn")?.Value
-        //    //          ?? "unknown@domain.com"; 
-        //    var email = User.FindFirst(ClaimTypes.Upn)?.Value ?? "unknown@domain.com";
+                if (existingUser == null)
+                {
+                    var newUser = new User
+                    {
+                        AzureAdId = azureAdId,
+                        Name = name ?? "Unknown",
+                        Email = email ?? "unknown@domain.com",
+                        Password = "",
+                        CreatedAt = DateTime.UtcNow
+                    };
 
+                    await _userService.CreateUserAsync(newUser);
+                    return Ok(new { message = "User created via SSO", user = newUser });
+                }
 
-        //    if (string.IsNullOrEmpty(azureAdId))
-        //        return BadRequest("Missing Azure AD ID.");
-
-        //    var existingUser = (await _userService.GetUsersAsync())
-        //        .FirstOrDefault(u => u.AzureAdId == azureAdId);
-
-        //    if (existingUser == null)
-        //    {
-        //        var newUser = new User
-        //        {
-        //            AzureAdId = azureAdId,
-        //            Name = displayName ?? "Unknown",
-        //            Email = email ?? "unknown@domain.com",
-        //            Password = "", // Not used for MSAL users
-        //            CreatedAt = DateTime.UtcNow
-        //        };
-
-        //        await _userService.CreateUserAsync(newUser);
-        //    }
-        //    Console.WriteLine($"Authenticated user: {User.Identity.Name}");
-        //    return Ok(new { message = "Microsoft user saved." });
-
-        //}
+                return Ok(new { message = "User logged in via SSO", user = existingUser });
+            }
+            catch (Exception ex)
+            {
+                return Unauthorized(new { error = "Token validation failed", details = ex.Message });
+            }
+        }
 
     }
 }

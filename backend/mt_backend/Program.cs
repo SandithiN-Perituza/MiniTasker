@@ -66,25 +66,3 @@ app.MapControllers();
 app.MapGet("/", () => "MiniTasker API is running!");
 
 app.Run();
-
-
-
-
-//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
-//    options.UseMySQL(builder.Configuration.GetConnectionString("DefaultConnection"))
-//);
-
-// Configure MSSQL database context
-//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
-//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-//);
-
-// Register Teams notification service
-//builder.Services.AddSingleton<INotificationService>(provider =>
-//    new NotificationService("https://outlook.office.com/webhook/your-webhook-url"));
-
-//using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-
-//Add Azure AD authentication
-//builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-//    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
