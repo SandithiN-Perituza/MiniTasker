@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { fetchTasks, deleteTask } from "../api/api";
 import TaskForm from "./TaskForm";
 import CommentSection from "./CommentSection";
 import Subtasks from "./SubTasks";
 import { getCurrentUser } from "../utils/auth";
 import { PiWarningCircleBold } from "react-icons/pi";
+import UserContext from "../context/UserContext";
 
 export default function TaskList() {
   const [tasks, setTasks] = useState([]);
@@ -15,7 +16,9 @@ export default function TaskList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [showMine, setShowMine] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [currentUser, setCurrentUser] = useState(null);
+  // const [currentUser, setCurrentUser] = useState(null);
+
+  const { currentUser, setCurrentUser } = useContext(UserContext);
 
   const tasksPerPage = 5;
 
@@ -88,8 +91,10 @@ export default function TaskList() {
   useEffect(() => {
     loadTasks();
     const user = getCurrentUser();
+    console.log("getcurrent user in tasklist:", getCurrentUser());
     setCurrentUser(user);
-  }, []);
+    console.log("Current User in TaskList:", user);
+  }, [setCurrentUser]);
 
   return (
     <div className="max-w-2xl mx-auto mt-8">
@@ -121,6 +126,7 @@ export default function TaskList() {
       )}
 
       {!currentUser && (
+        console.log("current user in tasklist near buttons:", currentUser),
         <p className="text-gray-500 mt-4">Please log in to manage tasks.</p>
       )}
 

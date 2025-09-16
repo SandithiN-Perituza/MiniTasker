@@ -14,4 +14,12 @@ export default defineConfig({
   //   // },
   //   // port: 3000,
   // },
+  
+  server: {
+    fs: {
+      allow: ['.'],
+    },
+    historyApiFallback: true,
+  },
+
 })

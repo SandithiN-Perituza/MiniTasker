@@ -57,6 +57,7 @@ export function logout() {
 
 export function getCurrentUser() {
   const user = localStorage.getItem("user");
+  console.log("Retrieved user from localStorage in authjs:", user);
   return user ? JSON.parse(user) : null;
 }
 

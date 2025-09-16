@@ -1,18 +1,20 @@
-import React from "react";
+import React, { useContext } from "react";
 import { useMsal } from "@azure/msal-react";
 import { loginRequest } from "../authConfig";
 import { loginMicrosoftUser } from "../api/api";
 import { useNavigate } from "react-router-dom";
+import UserContext from "../context/UserContext";
 
 export default function MicrosoftLoginButton({ setRefreshTrigger }) {
   const { instance } = useMsal();
   const navigate = useNavigate();
 
+  const { setCurrentUser } = useContext(UserContext);
   const handleMicrosoftLogin = async () => {
     try {
       console.log("Inside microsoft login button");
       // Step 1: Login with Microsoft
-      const loginResponse = await instance.loginRedirect(loginRequest);
+      const loginResponse = await instance.loginPopup(loginRequest);
       const account = loginResponse.account;
 
       // Step 2: Acquire token silently
@@ -22,9 +24,8 @@ export default function MicrosoftLoginButton({ setRefreshTrigger }) {
       });
 
       const accessToken = tokenResponse.accessToken;
-      console.log("Access Token:", tokenResponse.accessToken)
+      console.log("Access Token:", tokenResponse.accessToken);
 
-      
       // Step 3: Send token to backend
       const response = await loginMicrosoftUser(accessToken);
       const user = response.user;
@@ -35,9 +36,10 @@ export default function MicrosoftLoginButton({ setRefreshTrigger }) {
         localStorage.setItem("accessToken", accessToken);
         localStorage.setItem("user", JSON.stringify(user));
         console.log("Microsoft user logged in:", user);
-        
+
+        setCurrentUser(user);
         if (setRefreshTrigger) {
-          setRefreshTrigger(prev => prev + 1);
+          setRefreshTrigger((prev) => prev + 1);
         }
 
         navigate("/");
