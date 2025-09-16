@@ -12,7 +12,7 @@ export default function MicrosoftLoginButton({ setRefreshTrigger }) {
     try {
       console.log("Inside microsoft login button");
       // Step 1: Login with Microsoft
-      const loginResponse = await instance.loginRedirect(loginRequest);
+      const loginResponse = await instance.loginPopup(loginRequest);
       const account = loginResponse.account;
 
       // Step 2: Acquire token silently

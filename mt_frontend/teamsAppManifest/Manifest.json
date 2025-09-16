@@ -33,11 +33,10 @@
     }
   ],
   "validDomains": [
-    "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
-    "app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net"
+    "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net"
   ],
   "webApplicationInfo": {
-    "id": "086fdd43-c0b7-4997-a181-dbf938026ae5",
-    "resource": "api://086fdd43-c0b7-4997-a181-dbf938026ae5"
+    "id": "3ee5758e-f933-4383-ba25-8c5f0fb848a4",
+    "resource": "api://086fdd43-c0b7-4997-a181-dbf938026ae5/access_as_user"
   }
 }

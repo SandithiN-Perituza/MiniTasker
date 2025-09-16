@@ -12,8 +12,8 @@
 
 // export const msalConfig = {
 //   auth: {
-//     clientId: "YOUR_CLIENT_ID", // from Azure AD App Registration
-//     authority: "https://login.microsoftonline.com/YOUR_TENANT_ID", // your tenant ID
+//     clientId: "3ee5758e-f933-4383-ba25-8c5f0fb848a4", // from Azure AD App Registration
+//     authority: "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82", // your tenant ID
 //     redirectUri: "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/auth/callback", // deployed URL
 //   },
 //   cache: {
@@ -43,3 +43,9 @@ export const loginRequest = {
 }
 
 export const msalInstance = new PublicClientApplication(msalConfig);
+
+
+// Initialize MSAL before using it
+export const initializeMsal = async () => {
+  await msalInstance.initialize();
+};
