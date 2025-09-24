@@ -47,7 +47,7 @@ builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
-        policy => policy.WithOrigins("https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net")
+        policy => policy.WithOrigins("https://teams.microsoft.com", "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net")
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials());
@@ -56,6 +56,7 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors("AllowFrontend");
+app.UseCors("AllowTeams");
 app.UseHttpsRedirection();
 
 // Required for both OpenID and JWT
@@ -66,3 +67,33 @@ app.MapControllers();
 app.MapGet("/", () => "MiniTasker API is running!");
 
 app.Run();
+
+
+
+
+//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
+//    options.UseMySQL(builder.Configuration.GetConnectionString("DefaultConnection"))
+//);
+
+// Configure MSSQL database context
+//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
+//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+//);
+
+// Register Teams notification service
+//builder.Services.AddSingleton<INotificationService>(provider =>
+//    new NotificationService("https://outlook.office.com/webhook/your-webhook-url"));
+
+//using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+
+//Add Azure AD authentication
+//builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+//    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+
+
+//builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+//    .AddJwtBearer(options =>
+//    {
+//        options.Authority = "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82/v2.0";
+//        options.Audience = "api://086fdd43-c0b7-4997-a181-dbf938026ae5"; // must match your Expose an API Application ID URI
+//    });
