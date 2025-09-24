@@ -86,6 +86,7 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
+// Microsoft Login
 export async function loginMicrosoftUser(accessToken) {
   const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
     method: "POST",
@@ -108,8 +109,6 @@ export async function loginMicrosoftUser(accessToken) {
   // ✅ Return parsed JSON response
   return await res.json(); // This includes { message, user }
 }
-
-// Microsoft Login
 
 // export async function loginMicrosoftUser(accessToken) {
 //   const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {

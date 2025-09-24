@@ -270,6 +270,7 @@
 //   );
 // }
 
+// 09-24
 import React, { useEffect, useState, useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { logout } from "../utils/auth";
@@ -331,8 +332,8 @@ export default function Sidebar({ open, onClose, setRefreshTrigger }) {
           </svg>
         </button>
         <nav className="flex flex-col gap-2 p-4">
-          {/* Show login/signup only if NOT logged in and NOT inside Teams */}
-          {!loggedIn && !isInTeams && (
+          {/* Show login/signup only if NOT logged in */}
+          {!loggedIn && (
             <>
               <Link to="/login" className="py-2 px-4 rounded hover:bg-blue-100" onClick={onClose}>
                 Login
