@@ -330,54 +330,46 @@ namespace mt_backend.Controllers
             });
         }
 
-
-        //// /api/users/msal-login
-        //[Authorize]
-        //[HttpPost("msal-login")]
-        //public async Task<IActionResult> SaveMsalUser()
+        //[HttpPost("teams-sso-login")]
+        //public async Task<IActionResult> TeamsSsoLogin([FromBody] string token)
         //{
-        //    Console.WriteLine("=== MSAL Login Attempt ===");
+        //    try
+        //    {
+        //        var handler = new JwtSecurityTokenHandler();
+        //        var jwtToken = handler.ReadJwtToken(token);
 
-        [HttpPost("teams-sso-login")]
-        public async Task<IActionResult> TeamsSsoLogin([FromBody] string token)
-        {
-            try
-            {
-                var handler = new JwtSecurityTokenHandler();
-                var jwtToken = handler.ReadJwtToken(token);
+        //        var azureAdId = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+        //        var name = jwtToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+        //        var email = jwtToken.Claims.FirstOrDefault(c => c.Type == "upn")?.Value;
 
-                var azureAdId = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
-                var name = jwtToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
-                var email = jwtToken.Claims.FirstOrDefault(c => c.Type == "upn")?.Value;
+        //        if (string.IsNullOrEmpty(azureAdId))
+        //            return BadRequest("Invalid token.");
 
-                if (string.IsNullOrEmpty(azureAdId))
-                    return BadRequest("Invalid token.");
+        //        var existingUser = (await _userService.GetUsersAsync())
+        //            .FirstOrDefault(u => u.AzureAdId == azureAdId);
 
-                var existingUser = (await _userService.GetUsersAsync())
-                    .FirstOrDefault(u => u.AzureAdId == azureAdId);
+        //        if (existingUser == null)
+        //        {
+        //            var newUser = new User
+        //            {
+        //                AzureAdId = azureAdId,
+        //                Name = name ?? "Unknown",
+        //                Email = email ?? "unknown@domain.com",
+        //                Password = "",
+        //                CreatedAt = DateTime.UtcNow
+        //            };
 
-                if (existingUser == null)
-                {
-                    var newUser = new User
-                    {
-                        AzureAdId = azureAdId,
-                        Name = name ?? "Unknown",
-                        Email = email ?? "unknown@domain.com",
-                        Password = "",
-                        CreatedAt = DateTime.UtcNow
-                    };
+        //            await _userService.CreateUserAsync(newUser);
+        //            return Ok(new { message = "User created via SSO", user = newUser });
+        //        }
 
-                    await _userService.CreateUserAsync(newUser);
-                    return Ok(new { message = "User created via SSO", user = newUser });
-                }
-
-                return Ok(new { message = "User logged in via SSO", user = existingUser });
-            }
-            catch (Exception ex)
-            {
-                return Unauthorized(new { error = "Token validation failed", details = ex.Message });
-            }
-        }
+        //        return Ok(new { message = "User logged in via SSO", user = existingUser });
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        return Unauthorized(new { error = "Token validation failed", details = ex.Message });
+        //    }
+        //}
 
     }
 }

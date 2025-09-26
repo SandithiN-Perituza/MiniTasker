@@ -64,7 +64,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapGet("/", () => "MiniTasker API is running!");
+app.MapGet("/", () => "MiniTasker API is running! --- Sandihi's version ---");
 
 app.Run();
 
