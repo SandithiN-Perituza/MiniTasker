@@ -90,6 +90,7 @@ export async function loginMicrosoftUser(accessToken) {
   const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
     method: "POST",
     headers: {
+      'Content-Type': 'application/json',
       "Authorization": `Bearer ${accessToken}`,
     },
   });
