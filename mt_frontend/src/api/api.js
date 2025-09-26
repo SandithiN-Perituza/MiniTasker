@@ -86,61 +86,6 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
-export async function loginMicrosoftUser(accessToken) {
-  const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!res.ok) {
-    try {
-      const errorText = await res.text(); // ✅ Read once
-      console.error("Failed to login Microsoft user:", errorText);
-      return { error: errorText };
-    } catch (err) {
-      console.error("Failed to read error response:", err);
-      return { error: "Unknown error" };
-    }
-  }
-
-  // ✅ Return parsed JSON response
-  return await res.json(); // This includes { message, user }
-}
-
-// Microsoft Login
-
-// export async function loginMicrosoftUser(accessToken) {
-//   const res = await fetch(`${API_URL}/users/msal-login?saveUser=true`, {
-//     method: "POST",
-//     headers: {
-//       "Authorization": `Bearer ${accessToken}`,
-//     },
-//   });
-
-//   if (!res.ok) {
-//     try {
-//       const errorText = await res.text(); // ✅ Read once
-//       console.error("Failed to login Microsoft user:", errorText);
-//       return { error: errorText };
-//     } catch (err) {
-//       console.error("Failed to read error response:", err);
-//       return { error: "Unknown error" };
-//     }
-//   }
-
-//   try {
-//     return await res.json(); // ✅ Only read once
-//   } catch (err) {
-//     console.error("Failed to parse JSON:", err);
-//     return { error: "Invalid JSON response" };
-//   }
-
-// }
-
-
-
 // Comments
 // Fetch comments for a task
 export async function fetchComments(taskId) {

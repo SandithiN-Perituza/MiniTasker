@@ -1,6 +1,5 @@
-import { loginUser, createUser, loginMicrosoftUser } from "../api/api";
-import { msalInstance, loginRequest } from "../authConfig";
- 
+import { loginUser, createUser } from "../api/api";
+
 export async function login(email, password) {
   try {
     console.log("Logging in with:", { email, password });
@@ -11,33 +10,6 @@ export async function login(email, password) {
     }
     return false;
   } catch {
-    return false;
-  }
-}
-
-export async function microsoftLogin() {
-  try {
-    const loginResponse = await msalInstance.loginPopup(loginRequest);
-    const account = loginResponse.account;
-
-    const tokenResponse = await msalInstance.acquireTokenSilent({
-      ...loginRequest,
-      account,
-    });
-
-    const accessToken = tokenResponse.accessToken;
-
-    const response = await loginMicrosoftUser(accessToken); // should return { message, user }
-    const user = response.user;
-
-    if (user && user.azureAdId) {
-      localStorage.setItem("user", JSON.stringify(user));
-      return true;
-    }
-
-    return false;
-  } catch (error) {
-    console.error("Microsoft login failed:", error);
     return false;
   }
 }

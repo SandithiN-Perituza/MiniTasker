@@ -1,32 +1,17 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { logout } from "../utils/auth";
-import MicrosoftLoginButton from "./MicrosoftLogin";
-import * as microsoftTeams from "@microsoft/teams-js";
 
 function isLoggedIn() {
   return !!localStorage.getItem("user");
 }
 
-export default function Sidebar({ open, onClose, setRefreshTrigger }) {
+export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();
-  const [isInTeams, setIsInTeams] = useState(false);
   const loggedIn = isLoggedIn();
-
-  useEffect(() => {
-    // Detect if app is running inside Microsoft Teams
-    microsoftTeams.app.initialize().then(() => {
-      microsoftTeams.app.getContext().then(() => {
-        setIsInTeams(true);
-      });
-    }).catch(() => {
-      setIsInTeams(false);
-    });
-  }, []);
 
   function handleLogout() {
     logout();
-    setRefreshTrigger(prev => prev + 1);
     onClose();
     navigate("/login");
   }
@@ -51,7 +36,7 @@ export default function Sidebar({ open, onClose, setRefreshTrigger }) {
           </svg>
         </button>
         <nav className="flex flex-col gap-2 p-4">
-          {!isInTeams && !loggedIn && (
+          {!loggedIn && (
             <>
               <Link to="/login" className="py-2 px-4 rounded hover:bg-blue-100" onClick={onClose}>
                 Login
@@ -59,7 +44,6 @@ export default function Sidebar({ open, onClose, setRefreshTrigger }) {
               <Link to="/signup" className="py-2 px-4 rounded hover:bg-blue-100" onClick={onClose}>
                 Signup
               </Link>
-              <MicrosoftLoginButton setRefreshTrigger={setRefreshTrigger} />
             </>
           )}
           {loggedIn && (
