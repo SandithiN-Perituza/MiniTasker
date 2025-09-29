@@ -10,7 +10,7 @@ namespace mt_backend.Data
 
         public DbSet<User> Users { get; set; }
         public DbSet<TaskItem> Tasks { get; set; }
-
+        public DbSet<ErrorLog> ErrorLogs { get; set; }
         public DbSet<Comment> Comments { get; set; }
 
         public DbSet<Subtask> Subtasks { get; set; }
@@ -63,7 +63,8 @@ namespace mt_backend.Data
                     Status = Models.TaskStatus.Pending,
                     AssignedTo = 1,
                     CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    UpdatedAt = DateTime.UtcNow,
+                    DueDate = DateTime.UtcNow.AddDays(7)
                 },
                 new TaskItem
                 {

@@ -19,21 +19,31 @@ namespace mt_backend.Services
 
         public async Task<IEnumerable<TaskItemDto>> GetTasksAsync()
         {
-            return await _context.Tasks
-                .Include(t => t.AssignedUser)
-                .Select(t => new TaskItemDto
+            try
+            {
+                Console.WriteLine("Starting GetTasksAsync...");
+                var tasks = await _context.Tasks.Include(t => t.AssignedUser).ToListAsync();
+                Console.WriteLine($"Fetched {tasks.Count} tasks.");
+
+                var taskDtos = tasks.Select(t => new TaskItemDto
                 {
                     Id = t.Id,
                     Title = t.Title,
                     Description = t.Description,
                     Status = t.Status.ToString(),
+                    DueDate = t.DueDate,
                     AssignedTo = t.AssignedTo ?? 0,
-                    AssignedUserName = t.AssignedUser.Name,
-                    DueDate = t.DueDate
-                })
-                .ToListAsync();
-        }
+                    AssignedUserName = t.AssignedUser?.Name // check for null
+                }).ToList();
 
+                return taskDtos;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in GetTasksAsync: {ex.Message}");
+                throw;
+            }
+        }
 
         public async Task<IEnumerable<TaskItemDto>> GetTasksForUserAsync(string microsoftUserId)
         {
@@ -118,5 +128,11 @@ namespace mt_backend.Services
             await _context.SaveChangesAsync();
             return true;
         }
+
+        public async Task<User?> GetTaskUserByIdAsync(int userId)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        }
+
     }
 }

@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using mt_backend.DTOs;
 using mt_backend.Models;
@@ -13,24 +12,34 @@ namespace mt_backend.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    //This protects all actions in this controller
-    //[Authorize] 
     public class TasksController : ControllerBase
     {
         private readonly ITaskService _taskService;
-        //private readonly INotificationService _notifier;
-        public TasksController(ITaskService taskService)
-            //INotificationService notifier
+        private readonly INotificationService _notifier;
+        private readonly IErrorLogger _errorLogger;
+        private readonly ILogger<TasksController> _logger;
+
+        public TasksController(ITaskService taskService, INotificationService notifier, IErrorLogger errorLogger ,ILogger<TasksController> logger)
         {
             _taskService = taskService;
-            //_notifier = notifier;
+            _notifier = notifier;
+            _errorLogger = errorLogger;
+            _logger = logger;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskItemDto>>> GetTasks()
         {
-            var tasks = await _taskService.GetTasksAsync();
-            return Ok(tasks);
+            try
+            {
+                var tasks = await _taskService.GetTasksAsync();
+                return Ok(tasks);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in GetTasks: {ex.Message}");
+                return StatusCode(500, new { message = "An error occurred while retrieving tasks.", error = ex.Message });
+            }
         }
 
         [Authorize]
@@ -45,7 +54,6 @@ namespace mt_backend.Controllers
             return Ok(tasks);
         }
 
-
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskItemDto>> GetTaskById(int id)
         {
@@ -54,16 +62,39 @@ namespace mt_backend.Controllers
             return Ok(task);
         }
 
+
+
         [HttpPost]
         public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
         {
             var createdTask = await _taskService.CreateTaskAsync(task);
 
+            try
+            {
+                var assignedUser = await _taskService.GetTaskUserByIdAsync(task.AssignedTo ?? 0);
 
-           // await _notifier.SendMessageAsync($"New Task Created: **{createdTask.Title}** assigned to **{createdTask.AssignedTo}**");
+                if (assignedUser != null && !string.IsNullOrEmpty(assignedUser.AzureAdId))
+                {
+                    var taskUrl = $"https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/?highlight={createdTask.Id}";
+
+                    await _notifier.SendTaskCreatedNotificationAsync(
+                        assignedUser.AzureAdId,
+                        createdTask.Id.ToString(),
+                        "MiniTasker Bot",
+                        taskUrl
+                    );
+                }
+            }
+            catch (Exception ex)
+            {
+                await _errorLogger.LogAsync(ex.Message, ex.StackTrace ?? "No stack trace", "TasksController.CreateTask");
+            }
 
             return CreatedAtAction(nameof(GetTaskById), new { id = createdTask.Id }, createdTask);
         }
+
+
+
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(int id, TaskItem updatedTask)
@@ -74,8 +105,6 @@ namespace mt_backend.Controllers
 
             if (task == null) return NotFound(new { message = $"Task with ID {id} not found." });
 
-          //  await _notifier.SendMessageAsync($"Task Updated: **{updatedTask.Title}** assigned to **{updatedTask.AssignedTo}**");
-
             return Ok(task);
         }
 
@@ -85,8 +114,6 @@ namespace mt_backend.Controllers
             var deletedTask = await _taskService.GetTaskByIdAsync(id);
             var success = await _taskService.DeleteTaskAsync(id);
             if (!success) return NotFound(new { message = "Task deletion with ID is not successful" });
-
-          //  await _notifier.SendMessageAsync($"Task with Id: {deletedTask.Id} and title {deletedTask.Title} is deleted");
 
             return Ok(new { message = $"Task with ID {id} is deleted successfully" });
         }

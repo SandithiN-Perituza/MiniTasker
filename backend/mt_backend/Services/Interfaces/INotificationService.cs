@@ -2,7 +2,6 @@
 {
     public interface INotificationService
     {
-        Task SendMessageAsync(string message);
+        Task SendTaskCreatedNotificationAsync(string userId, string taskId, string actorName, string taskUrl);
     }
-
 }

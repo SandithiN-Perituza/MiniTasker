@@ -1,29 +1,60 @@
 ﻿using mt_backend.Services.Interfaces;
-using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json;
 
-namespace mt_backend.Services
+public class NotificationService : INotificationService
 {
-    public class NotificationService : INotificationService
+    private readonly HttpClient _httpClient;
+    private readonly IErrorLogger _errorLogger;
+
+    public NotificationService(IHttpClientFactory httpClientFactory, IErrorLogger errorLogger)
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _webhookUrl;
+        _httpClient = httpClientFactory.CreateClient();
+        _errorLogger = errorLogger;
+    }
 
-        public NotificationService(string webhookUrl)
+    public async Task SendTaskCreatedNotificationAsync(string userId, string taskId, string actorName, string taskUrl)
+    {
+        var accessToken = await GraphTokenProvider.GetAccessTokenAsync();
+
+        taskUrl = $"https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/?highlight={taskId}";
+
+        var requestUrl = $"https://graph.microsoft.com/beta/users/{userId}/teamwork/sendActivityNotification";
+
+        var payload = new
         {
-            _httpClient = new HttpClient();
-            _webhookUrl = webhookUrl;
+            topic = new
+            {
+                source = "entityUrl",
+                value = taskUrl,
+                webUrl = taskUrl
+            },
+            activityType = "taskCreated",
+            previewText = new { content = "You have a new task assigned." },
+            templateParameters = new[]
+            {
+                new { name = "taskId", value = taskId },
+                new { name = "actor", value = actorName }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(payload);
+        var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        var response = await _httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorContent = await response.Content.ReadAsStringAsync();
+            await _errorLogger.LogAsync($"Graph API Error: {response.StatusCode}", errorContent, "NotificationService.SendTaskCreatedNotificationAsync");
         }
 
-        public async Task SendMessageAsync(string message)
-        {
-            var payload = $"{{ \"text\": \"{message}\" }}";
-            var content = new StringContent(payload, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync(_webhookUrl, content);
-            response.EnsureSuccessStatusCode();
-        }
+        response.EnsureSuccessStatusCode();
     }
 }
-

@@ -6,7 +6,6 @@ namespace mt_backend.Models
     {
         public int Id { get; set; }
 
-
         [Column(TypeName = "varchar(255)")]
         public string? AzureAdId { get; set; }
 

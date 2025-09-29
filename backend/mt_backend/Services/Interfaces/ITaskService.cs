@@ -8,10 +8,11 @@ namespace mt_backend.Services
     public interface ITaskService
     {
         Task<IEnumerable<TaskItemDto>> GetTasksAsync();
-        Task<TaskItemDto> GetTaskByIdAsync(int id);
+        Task<TaskItemDto?> GetTaskByIdAsync(int id);
         Task<IEnumerable<TaskItemDto>> GetTasksForUserAsync(string userId);
         Task<TaskItem> CreateTaskAsync(TaskItem task);
         Task<TaskItem> UpdateTaskAsync(int id, TaskItem updatedTask);
         Task<bool> DeleteTaskAsync(int id);
+        Task<User?> GetTaskUserByIdAsync(int userId);
     }
 }
