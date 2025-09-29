@@ -37,6 +37,47 @@
   ],
   "webApplicationInfo": {
     "id": "3ee5758e-f933-4383-ba25-8c5f0fb848a4",
-    "resource": "api://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net"
-  }
+    "resource": "api://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net"
+  },
+  "activities": {
+      "activityTypes": [
+        {
+          "type": "taskCreated",
+          "description": "Task Created Notification",
+          "templateText": "{actor} created task {taskId} for you"
+        },
+        {
+          "type": "taskUpdated",
+          "description": "Task Updated Notification",
+          "templateText": "{actor} updated task {taskId}"
+        },
+        {
+          "type": "taskCompleted",
+          "description": "Task Completed Notification",
+          "templateText": "Task {taskId} has been marked as completed by {actor}"
+        }
+      ]
+    },
+  "authorization": {
+    "permissions": {
+      "resourceSpecific": [ 
+      {
+        "type": "Application",
+        "name": "TeamsActivity.Send"
+        },
+        {
+          "type": "Application",
+          "name": "TeamsActivity.Send.User"
+        },
+        {
+          "type": "Application",
+          "name": "TeamsActivity.Send.Chat"
+        },
+        {
+          "type": "Application",
+          "name": "TeamsActivity.Send.Group"
+        }
+      ]
+    }
+}
 }

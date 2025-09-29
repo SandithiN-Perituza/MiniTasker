@@ -109,16 +109,21 @@ import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import UserContext from "./context/UserContext";
 // import { getCurrentUser } from "./utils/auth";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { currentUser, setCurrentUser, refreshTrigger, setRefreshTrigger } =
     useContext(UserContext);
 
-  console.log("---Sandithi's version---");
+  console.log("---kasundi's version---");
   
   console.log("Actual iframe origin:", window.location.origin);
-
+  console.log("window parent location:", window.parent.location);
+  console.log("window top location:", window.top.location);
+  
   console.log("Current User in App.jsx:", currentUser);
 
   useEffect(() => {
@@ -147,9 +152,19 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
+            <Route path="/terms" element={<Terms />} />          
           </Routes>
         </main>
+          <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop={false}
+              closeOnClick
+              pauseOnHover
+              draggable
+              theme="light"
+            />
         <Footer />
       </div>
     </Router>

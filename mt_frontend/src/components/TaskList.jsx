@@ -6,17 +6,20 @@ import Subtasks from "./SubTasks";
 import { getCurrentUser } from "../utils/auth";
 import { PiWarningCircleBold } from "react-icons/pi";
 import UserContext from "../context/UserContext";
+import { useSearchParams } from "react-router-dom";
 
 export default function TaskList() {
   const [tasks, setTasks] = useState([]);
   const [editing, setEditing] = useState(null);
   const [viewingTask, setViewingTask] = useState(null);
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false); 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showMine, setShowMine] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   // const [currentUser, setCurrentUser] = useState(null);
+  const [searchParams] = useSearchParams();
+  const highlightTaskId = searchParams.get("highlight");
 
   const { currentUser, setCurrentUser } = useContext(UserContext);
 
@@ -35,7 +38,7 @@ export default function TaskList() {
     if (String(task?.assignedTo) !== String(currentUser.id)) {
       alert("You can only delete tasks assigned to you.");
       return;
-    }
+    } 
 
     if (window.confirm("Are you sure you want to delete this task?")) {
       try {
@@ -95,6 +98,21 @@ export default function TaskList() {
     setCurrentUser(user);
     console.log("Current User in TaskList:", user);
   }, [setCurrentUser]);
+
+  useEffect(() => {
+  loadTasks();
+  const user = getCurrentUser();
+  setCurrentUser(user);
+}, [setCurrentUser]);
+
+  useEffect(() => {
+    if (highlightTaskId && tasks.length > 0) {
+      const taskToHighlight = tasks.find(t => String(t.id) === highlightTaskId);
+      if (taskToHighlight) {
+        setViewingTask(taskToHighlight);
+      }
+    }
+  }, [highlightTaskId, tasks]);
 
   return (
     <div className="max-w-2xl mx-auto mt-8">

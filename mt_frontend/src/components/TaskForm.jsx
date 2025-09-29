@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createTask, updateTask, fetchUsers } from "../api/api";
 import { PiWarningCircleBold } from 'react-icons/pi';
+import { toast } from "react-toastify";
 
 const statusOptions = [
   { value: 0, label: "Pending" },
@@ -78,11 +79,14 @@ export default function TaskForm({ onSuccess, task }) {
       ...form,
       assignedTo: form.assignedTo || null,
     };
-    if (task) {
-      await updateTask(task.id, { ...task, ...payload });
-    } else {
-      await createTask(payload);
-    }
+    try {
+      if (task) {
+        await updateTask(task.id, { ...task, ...payload });
+        toast.success("Task updated successfully.");
+      } else {
+        await createTask(payload);
+        toast.success("Task created and notification sent!");
+      }
     onSuccess();
     // reset form
     setForm({
@@ -93,6 +97,10 @@ export default function TaskForm({ onSuccess, task }) {
       dueDate: "",
     });
     setErrors({});
+    
+  } catch (error) {
+      toast.error("Something went wrong. Please try again.");
+   }
   }
 
   const isOverdue = form.dueDate && new Date(form.dueDate) < new Date() && form.status !== 2;
