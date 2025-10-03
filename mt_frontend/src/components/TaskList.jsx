@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { fetchTasks, deleteTask } from "../api/api";
 import TaskForm from "./TaskForm";
 import CommentSection from "./CommentSection";
 import Subtasks from "./SubTasks";
-import { getCurrentUser } from "../utils/auth";
+import UserContext from "../context/UserContext";
 import { PiWarningCircleBold } from "react-icons/pi";
 
 export default function TaskList() {
+  const { user } = useContext(UserContext);
   const [tasks, setTasks] = useState([]);
   const [editing, setEditing] = useState(null);
   const [viewingTask, setViewingTask] = useState(null);
@@ -15,7 +16,6 @@ export default function TaskList() {
   const [statusFilter, setStatusFilter] = useState("");
   const [showMine, setShowMine] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [currentUser, setCurrentUser] = useState(null);
 
   const tasksPerPage = 5;
 
@@ -27,9 +27,9 @@ export default function TaskList() {
   }
 
   const handleDelete = async (id) => {
-    if (!currentUser) return;
+    if (!user) return;
     const task = tasks.find((t) => t.id === id);
-    if (String(task?.assignedTo) !== String(currentUser.id)) {
+    if (String(task?.assignedTo) !== String(user.id)) {
       alert("You can only delete tasks assigned to you.");
       return;
     }
@@ -45,7 +45,7 @@ export default function TaskList() {
   };
 
   const handleEdit = (task) => {
-    if (String(task?.assignedTo) !== String(currentUser.id)) {
+    if (String(task?.assignedTo) !== String(user.id)) {
       alert("You can only edit tasks assigned to you.");
       return;
     }
@@ -73,7 +73,7 @@ export default function TaskList() {
         .includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter ? task.status === statusFilter : true;
       const matchesMine = showMine
-        ? String(task.assignedTo) === String(currentUser?.id)
+        ? String(task.assignedTo) === String(user?.id)
         : true;
       return matchesSearch && matchesStatus && matchesMine;
     })
@@ -87,13 +87,11 @@ export default function TaskList() {
 
   useEffect(() => {
     loadTasks();
-    const user = getCurrentUser();
-    setCurrentUser(user);
   }, []);
 
   return (
     <div className="max-w-2xl mx-auto mt-8">
-      {currentUser && (
+      {user && (
         <div className="flex gap-4">
           <button
             className="bg-blue-500 text-white px-4 py-2 rounded"
@@ -120,7 +118,7 @@ export default function TaskList() {
         </div>
       )}
 
-      {!currentUser && (
+      {!user && (
         <p className="text-gray-500 mt-4">Please log in to manage tasks.</p>
       )}
 
@@ -191,7 +189,7 @@ export default function TaskList() {
             <Subtasks taskId={viewingTask.id} />
 
             {/* Comments */}
-            <CommentSection taskId={viewingTask.id} userId={currentUser?.id} />
+            <CommentSection taskId={viewingTask.id} userId={user?.id} />
 
             <button
               className="mt-4 text-red-500"
@@ -277,8 +275,8 @@ export default function TaskList() {
                   View
                 </button>
 
-                {currentUser &&
-                  String(task.assignedTo) === String(currentUser.id) && (
+                {user &&
+                  String(task.assignedTo) === String(user.id) && (
                     <>
                       <span className="text-gray-500">|</span>
                       <button

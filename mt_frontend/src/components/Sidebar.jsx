@@ -1,18 +1,15 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { logout } from "../utils/auth";
 import { msalInstance } from "../utils/msalConfig";
+import UserContext from "../context/UserContext";
+import { IoMenu } from "react-icons/io5";
 
 export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();
-  const loggedIn = isLoggedIn();
-
-  function isLoggedIn() {
-    return !!localStorage.getItem("user");
-  }
+  const { user, login, logout } = useContext(UserContext);
 
   function handleLogout() {
-    logout();
+    logout(); // Use context logout instead of utils/auth logout
     onClose();
     navigate("/login");
   }
@@ -36,8 +33,8 @@ export default function Sidebar({ open, onClose }) {
         }
       );
 
-      const user = await res.json();
-      localStorage.setItem("user", JSON.stringify(user));
+      const userData = await res.json();
+      login(userData); // Use context login instead of localStorage
       onClose();
       navigate("/");
     } catch (err) {
@@ -68,18 +65,10 @@ export default function Sidebar({ open, onClose }) {
           onClick={onClose}
           aria-label="Close menu"
         >
-          <svg
-            width="24"
-            height="24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <IoMenu size={24} />
         </button>
         <nav className="flex flex-col gap-2 p-4">
-          {!loggedIn && (
+          {!user && (
             <>
               <Link
                 to="/login"
@@ -103,7 +92,7 @@ export default function Sidebar({ open, onClose }) {
               </button>
             </>
           )}
-          {loggedIn && (
+          {user && (
             <button
               className="py-2 px-4 rounded hover:bg-blue-100 text-left"
               onClick={handleLogout}
@@ -117,64 +106,3 @@ export default function Sidebar({ open, onClose }) {
   );
 }
 
-// import React from "react";
-// import { Link, useNavigate } from "react-router-dom";
-// import { logout } from "../utils/auth";
-
-// function isLoggedIn() {
-//   return !!localStorage.getItem("user");
-// }
-
-// export default function Sidebar({ open, onClose }) {
-//   const navigate = useNavigate();
-//   const loggedIn = isLoggedIn();
-
-//   function handleLogout() {
-//     logout();
-//     onClose();
-//     navigate("/login");
-//   }
-
-//   return (
-//     <div
-//       className={`fixed inset-0 z-20 transition-all ${open ? "visible" : "invisible"}`}
-//       aria-hidden={!open}
-//     >
-//       <div
-//         className={`fixed inset-0 bg-black bg-opacity-30 transition-opacity ${open ? "opacity-100" : "opacity-0"}`}
-//         onClick={onClose}
-//       />
-//       <aside
-//         className={`fixed top-0 left-0 h-full w-64 bg-white shadow-lg transform transition-transform ${
-//           open ? "translate-x-0" : "-translate-x-full"
-//         }`}
-//       >
-//         <button className="p-4 focus:outline-none" onClick={onClose} aria-label="Close menu">
-//           <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2">
-//             <path d="M6 18L18 6M6 6l12 12" />
-//           </svg>
-//         </button>
-//         <nav className="flex flex-col gap-2 p-4">
-//           {!loggedIn && (
-//             <>
-//               <Link to="/login" className="py-2 px-4 rounded hover:bg-blue-100" onClick={onClose}>
-//                 Login
-//               </Link>
-//               <Link to="/signup" className="py-2 px-4 rounded hover:bg-blue-100" onClick={onClose}>
-//                 Signup
-//               </Link>
-//             </>
-//           )}
-//           {loggedIn && (
-//             <button
-//               className="py-2 px-4 rounded hover:bg-blue-100 text-left"
-//               onClick={handleLogout}
-//             >
-//               Logout
-//             </button>
-//           )}
-//         </nav>
-//       </aside>
-//     </div>
-//   );
-// }

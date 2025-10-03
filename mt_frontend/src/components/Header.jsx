@@ -1,19 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext } from "react";
 import { Link } from "react-router-dom";
+import UserContext from "../context/UserContext";
 
-export default function Header({ onMenuClick, refreshTrigger  }) {
-  const [userName, setUserName] = useState("");
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setUserName(user.name || "");
-      console.log("Header userName:", user.name);
-    } else {
-      setUserName(""); // Clear if no user
-    }
-  }, [refreshTrigger]); // Re-run when refreshTrigger changes
+export default function Header({ onMenuClick }) {
+  const { user } = useContext(UserContext);
 
   return (
     <header className="bg-blue-700 text-white p-4 flex items-center justify-between">
@@ -32,19 +22,18 @@ export default function Header({ onMenuClick, refreshTrigger  }) {
         <span className="text-2xl font-bold">Mini&nbsp;Tasker</span>
       </div>
 
-      {userName && (
+      {user?.name && (
         <Link
           to="/profile"
           className="text-sm font-medium hover:underline"
           title="Go to Profile"
         >
-          Welcome, {userName}
+          Welcome, {user.name}
         </Link>
       )}
     </header>
   );
 }
-
 
 
 
