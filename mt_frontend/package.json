@@ -13,7 +13,7 @@
   "dependencies": {
     "@azure/msal-browser": "^4.21.1",
     "@azure/msal-react": "^3.0.19",
-    "@microsoft/teams-js": "^2.44.0",
+    "@microsoft/teams-js": "^2.19.0",
     "axios": "^1.11.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

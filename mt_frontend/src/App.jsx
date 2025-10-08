@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { MsalProvider } from "@azure/msal-react";
 import { msalInstance } from "./utils/msalConfig";
 import { UserProvider } from "./context/UserProvider";
+import { TeamsProvider } from "./context/TeamsProvider";
 import TaskList from "./components/TaskList";
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
@@ -17,22 +18,24 @@ export default function App() {
 
   return (
     <MsalProvider instance={msalInstance}>
-      <UserProvider>
-        <Router>
-          <div className="flex flex-col min-h-screen bg-gray-50">
-            <Header onMenuClick={() => setSidebarOpen(true)} />
-            <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-            <main className="flex-1 p-4">
-              <Routes>
-                <Route path="/" element={<TaskList />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-              </Routes>
-            </main>
-            <Footer />
-          </div>
-        </Router>
-      </UserProvider>
+      <TeamsProvider>
+        <UserProvider>
+          <Router>
+            <div className="flex flex-col min-h-screen bg-gray-50">
+              <Header onMenuClick={() => setSidebarOpen(true)} />
+              <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+              <main className="flex-1 p-4">
+                <Routes>
+                  <Route path="/" element={<TaskList />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                </Routes>
+              </main>
+              <Footer />
+            </div>
+          </Router>
+        </UserProvider>
+      </TeamsProvider>
     </MsalProvider>
   );
 }
