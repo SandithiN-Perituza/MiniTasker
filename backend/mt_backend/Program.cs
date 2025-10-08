@@ -11,10 +11,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Load configuration
 var configuration = builder.Configuration;
 
-//Add JWT Bearer authentication (for API token validation)
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
-
 builder.Services.AddAuthorization();
 
 // Add controllers and JSON options
@@ -47,7 +43,7 @@ builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
-        policy => policy.WithOrigins("https://teams.microsoft.com", "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net")
+        policy => policy.WithOrigins("https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net")
                         .AllowAnyHeader()
                         .AllowAnyMethod()
                         .AllowCredentials());
@@ -56,15 +52,10 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseCors("AllowFrontend");
-app.UseCors("AllowTeams");
 app.UseHttpsRedirection();
 
-// Required for both OpenID and JWT
-app.UseAuthentication();
-app.UseAuthorization();
-
 app.MapControllers();
-app.MapGet("/", () => "MiniTasker API is running! --- Sandihi's version ---");
+app.MapGet("/", () => "MiniTasker API is running! --- Sandihi's version - feature-microsoft-login ---");
 
 app.Run();
 
@@ -97,3 +88,24 @@ app.Run();
 //        options.Authority = "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82/v2.0";
 //        options.Audience = "api://086fdd43-c0b7-4997-a181-dbf938026ae5"; // must match your Expose an API Application ID URI
 //    });
+
+
+//Add JWT Bearer authentication (for API token validation)
+//builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+//    .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
+
+// Configure CORS
+//builder.Services.AddCors(options =>
+//{
+//    options.AddPolicy("AllowFrontend",
+//        policy => policy.WithOrigins("https://teams.microsoft.com", "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net")
+//                        .AllowAnyHeader()
+//                        .AllowAnyMethod()
+//                        .AllowCredentials());
+//});
+
+//app.UseCors("AllowTeams");
+
+// Required for both OpenID and JWT
+//app.UseAuthentication();
+//app.UseAuthorization();

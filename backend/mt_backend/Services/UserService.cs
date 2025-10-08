@@ -35,7 +35,6 @@ namespace mt_backend.Services
             return user;
         }
 
-
         public async Task<User?> LoginAsync(LoginRequest request)
         {
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
@@ -45,7 +44,14 @@ namespace mt_backend.Services
             return result == PasswordVerificationResult.Failed ? null : user;
         }
 
-
+        public async Task<User?> GetUserByEmailAsync(string email)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Email == email);
+        }
+        public async Task<User?> GetUserByAzureAdIdAsync(string azureAdId)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.AzureAdId == azureAdId);
+        }
     }
 
 }
