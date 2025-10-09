@@ -9,4 +9,7 @@ public interface IUserService
 
     Task<User?> GetUserByEmailAsync(string email);
     Task<User?> GetUserByAzureAdIdAsync(string azureAdId);
+    Task<User?> GetUserByIdAsync(int id);
+
+    Task<string> ResolveAzureUserId(int internalUserId);
 }

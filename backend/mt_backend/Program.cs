@@ -28,7 +28,8 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<ISubtaskService, SubtaskService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
-
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IErrorLogger, ErrorLogger>();
 // Configure MySQL database context
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -55,57 +56,10 @@ app.UseCors("AllowFrontend");
 app.UseHttpsRedirection();
 
 app.MapControllers();
-app.MapGet("/", () => "MiniTasker API is running! --- Sandihi's version - feature-microsoft-login ---");
+app.MapGet("/", () => "MiniTasker API is running! --- kasundi's version - be-notification new ---");
 
 app.Run();
 
 
 
 
-//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
-//    options.UseMySQL(builder.Configuration.GetConnectionString("DefaultConnection"))
-//);
-
-// Configure MSSQL database context
-//builder.Services.AddDbContext<MiniTaskerDbContext>(options =>
-//    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
-//);
-
-// Register Teams notification service
-//builder.Services.AddSingleton<INotificationService>(provider =>
-//    new NotificationService("https://outlook.office.com/webhook/your-webhook-url"));
-
-//using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-
-//Add Azure AD authentication
-//builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-//    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
-
-
-//builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-//    .AddJwtBearer(options =>
-//    {
-//        options.Authority = "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82/v2.0";
-//        options.Audience = "api://086fdd43-c0b7-4997-a181-dbf938026ae5"; // must match your Expose an API Application ID URI
-//    });
-
-
-//Add JWT Bearer authentication (for API token validation)
-//builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-//    .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
-
-// Configure CORS
-//builder.Services.AddCors(options =>
-//{
-//    options.AddPolicy("AllowFrontend",
-//        policy => policy.WithOrigins("https://teams.microsoft.com", "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net")
-//                        .AllowAnyHeader()
-//                        .AllowAnyMethod()
-//                        .AllowCredentials());
-//});
-
-//app.UseCors("AllowTeams");
-
-// Required for both OpenID and JWT
-//app.UseAuthentication();
-//app.UseAuthorization();

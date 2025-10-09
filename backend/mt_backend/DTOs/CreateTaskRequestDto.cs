@@ -1,16 +1,11 @@
 ﻿namespace mt_backend.DTOs
 {
-    public class TaskItemDto
+    public class CreateTaskRequestDto
     {
-
-        public int Id { get; set; }
         public string? Title { get; set; }
         public string? Description { get; set; }
-        public string? Status { get; set; }
         public int AssignedTo { get; set; }
-        public string? AssignedUserName { get; set; }
-        public string? AssignedUserAzureAdId { get; set; } 
         public DateTime DueDate { get; set; }
-
+        public string? ActorName { get; set; }
     }
 }

@@ -52,6 +52,24 @@ namespace mt_backend.Services
         {
             return await _context.Users.FirstOrDefaultAsync(u => u.AzureAdId == azureAdId);
         }
+
+        public async Task<User?> GetUserByIdAsync(int id)
+        {
+            return await _context.Users.FirstOrDefaultAsync(u => u.Id == id);
+        }
+
+        public async Task<string> ResolveAzureUserId(int internalUserId)
+        {
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == internalUserId);
+
+            if (user == null)
+                throw new Exception($"User with ID {internalUserId} not found.");
+
+            if (string.IsNullOrEmpty(user.AzureAdId))
+                throw new Exception($"User with ID {internalUserId} does not have an Azure AD ID.");
+
+            return user.AzureAdId;
+        }
     }
 
 }

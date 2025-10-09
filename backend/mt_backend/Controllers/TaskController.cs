@@ -1,6 +1,8 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Humanizer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Graph;
 using mt_backend.DTOs;
 using mt_backend.Models;
 using mt_backend.Services;
@@ -18,19 +20,31 @@ namespace mt_backend.Controllers
     public class TasksController : ControllerBase
     {
         private readonly ITaskService _taskService;
-        //private readonly INotificationService _notifier;
-        public TasksController(ITaskService taskService)
-            //INotificationService notifier
+        private readonly INotificationService _notifier;
+        private readonly IErrorLogger _errorLogger;
+        private readonly IUserService _userService;
+
+        public TasksController(ITaskService taskService, IErrorLogger errorLogger, IUserService userService, INotificationService notifier)
         {
             _taskService = taskService;
-            //_notifier = notifier;
+            _notifier = notifier;
+            _errorLogger = errorLogger;
+            _userService = userService;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskItemDto>>> GetTasks()
         {
-            var tasks = await _taskService.GetTasksAsync();
-            return Ok(tasks);
+            try
+            {
+                var tasks = await _taskService.GetTasksAsync();
+                return Ok(tasks);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex); // Or use your logger
+                return StatusCode(500, new { error = ex.ToString() });
+            }
         }
 
         [Authorize]
@@ -45,7 +59,6 @@ namespace mt_backend.Controllers
             return Ok(tasks);
         }
 
-
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskItemDto>> GetTaskById(int id)
         {
@@ -55,12 +68,62 @@ namespace mt_backend.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<TaskItem>> CreateTask(TaskItem task)
+        public async Task<ActionResult<TaskItem>> CreateTask(CreateTaskRequestDto dto)
         {
-            var createdTask = await _taskService.CreateTaskAsync(task);
+            var task = new TaskItem
+            {
+                Title = dto.Title,
+                Description = dto.Description,
+                AssignedTo = dto.AssignedTo,
+                DueDate = dto.DueDate
+            };
 
+            var createdTask = await _taskService.CreateTaskAsync(task, dto.ActorName);
 
-           // await _notifier.SendMessageAsync($"New Task Created: **{createdTask.Title}** assigned to **{createdTask.AssignedTo}**");
+            //try
+            //{
+            //    if (createdTask.AssignedTo.HasValue)
+            //    {
+            //        // ✅ Resolve Azure AD user ID from internal user ID
+            //        var assignedUser = await _userService.GetUserByIdAsync(createdTask.AssignedTo.Value);
+            //        if (assignedUser?.AzureAdId != null)
+            //        {
+            //            string azureUserId = assignedUser.AzureAdId;
+
+            //            // Send activity feed notification
+            //            await _notifier.SendTaskCreatedNotificationAsync(
+            //                userId: azureUserId,
+            //                taskId: createdTask.Id.ToString(),
+            //                actorName: dto.ActorName,
+            //                taskUrl: null // optional, will be built inside the service
+            //            );
+            //        }
+            //    }
+            //    else
+            //    {
+            //        await _errorLogger.LogAsync(
+            //            "AssignedTo is null",
+            //            "Cannot send notification because AssignedTo is null.",
+            //            "TasksController.CreateTask"
+            //        );
+            //    }
+            //}
+            //catch (ServiceException ex)
+            //{
+            //    await _errorLogger.LogAsync(
+            //        $"Graph API Error: {ex.StatusCode}",
+            //        $"Message: {ex.Message}\nDetails: {ex.Error?.Message}",
+            //        "NotificationService.SendTaskCreatedNotificationAsync"
+            //    );
+            //}
+            //catch (Exception ex)
+            //{
+            //    await _errorLogger.LogAsync(
+            //        $"Notification Error: {ex.Message}",
+            //        ex.StackTrace ?? "No stack trace",
+            //        "TasksController.CreateTask"
+            //    );
+            //}
 
             return CreatedAtAction(nameof(GetTaskById), new { id = createdTask.Id }, createdTask);
         }
@@ -74,8 +137,6 @@ namespace mt_backend.Controllers
 
             if (task == null) return NotFound(new { message = $"Task with ID {id} not found." });
 
-          //  await _notifier.SendMessageAsync($"Task Updated: **{updatedTask.Title}** assigned to **{updatedTask.AssignedTo}**");
-
             return Ok(task);
         }
 
@@ -85,8 +146,6 @@ namespace mt_backend.Controllers
             var deletedTask = await _taskService.GetTaskByIdAsync(id);
             var success = await _taskService.DeleteTaskAsync(id);
             if (!success) return NotFound(new { message = "Task deletion with ID is not successful" });
-
-          //  await _notifier.SendMessageAsync($"Task with Id: {deletedTask.Id} and title {deletedTask.Title} is deleted");
 
             return Ok(new { message = $"Task with ID {id} is deleted successfully" });
         }

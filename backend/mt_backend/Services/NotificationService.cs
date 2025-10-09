@@ -1,29 +1,29 @@
-﻿using mt_backend.Services.Interfaces;
-using System.Net.Http;
-using System.Text;
+using mt_backend.Services.Interfaces;
 using System.Threading.Tasks;
 
 namespace mt_backend.Services
 {
     public class NotificationService : INotificationService
     {
-        private readonly HttpClient _httpClient;
-        private readonly string _webhookUrl;
+        private readonly IErrorLogger _errorLogger;
 
-        public NotificationService(string webhookUrl)
+        public NotificationService(IErrorLogger errorLogger)
         {
-            _httpClient = new HttpClient();
-            _webhookUrl = webhookUrl;
+            _errorLogger = errorLogger;
         }
 
-        public async Task SendMessageAsync(string message)
+        public async Task SendTaskCreatedNotificationAsync(string userId, string taskId, string actorName, string taskUrl)
         {
-            var payload = $"{{ \"text\": \"{message}\" }}";
-            var content = new StringContent(payload, Encoding.UTF8, "application/json");
-
-            var response = await _httpClient.PostAsync(_webhookUrl, content);
-            response.EnsureSuccessStatusCode();
+            // TODO: Implement Microsoft Graph notification when proper dependencies are configured
+            // For now, just log that a notification would be sent
+            await _errorLogger.LogAsync(
+                $"Notification would be sent to user {userId} for task {taskId}",
+                $"Actor: {actorName}, URL: {taskUrl}",
+                "NotificationService.SendTaskCreatedNotificationAsync"
+            );
+            
+            // This prevents the 500 error and allows task fetching to work
+            // You can implement the actual Graph API call when dependencies are properly set up
         }
     }
 }
-
