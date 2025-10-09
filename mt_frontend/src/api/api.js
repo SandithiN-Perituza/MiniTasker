@@ -1,11 +1,32 @@
 // const API_URL = "https://localhost:7296/api";
 const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net/api";
-
+import { getCurrentUser } from "../utils/auth.js"; 
 // Tasks
 // Fetch all tasks
+// export async function fetchTasks() {
+//   const res = await fetch(`${API_URL}/tasks`);
+//   return res.json();
+// }
+
 export async function fetchTasks() {
-  const res = await fetch(`${API_URL}/tasks`);
-  return res.json();
+    try {
+        const response = await fetch(`${API_URL}/tasks`);
+
+        if (!response.ok) {
+            throw new Error(`Server error: ${response.status}`);
+        }
+
+        const text = await response.text();
+
+        if (!text) {
+            throw new Error("Empty response from server");
+        }
+
+        return JSON.parse(text);
+    } catch (error) {
+        console.error("Error fetching tasks:", error.message);
+        return []; // Return empty array to avoid crashing the UI
+    }
 }
 
 export async function fetchUserTasks() {
@@ -26,11 +47,29 @@ export async function fetchUserTasks() {
 
 // Create a new task
 export async function createTask(task) {
+  const token = localStorage.getItem("accessToken");
+  const currentUser = getCurrentUser();
+  const actorName = currentUser?.name || "Unknown";
+
+  const taskWithActor = {
+    ...task,
+    actorName: actorName, // ✅ Add actor name
+  };
+
   const res = await fetch(`${API_URL}/tasks`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(task),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(taskWithActor),
   });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Task creation failed: ${errorText}`);
+  }
+
   return res.json();
 }
 
