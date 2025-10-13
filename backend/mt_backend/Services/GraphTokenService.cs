@@ -1,9 +1,10 @@
 ﻿using Microsoft.Identity.Web;
+using mt_backend.Services.Interfaces;
 using System;
 
 namespace mt_backend.Services
 {
-    public class GraphTokenService
+    public class GraphTokenService:IGraphTokenService
     {
         private readonly ITokenAcquisition _tokenAcquisition;
 
