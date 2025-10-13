@@ -1,6 +1,7 @@
 import { useMsal } from "@azure/msal-react";
 import { useState } from "react";
 
+// NOTE: Retained only as a fallback outside Teams; SSO inside Teams handled automatically now.
 const MicrosoftLogin = () => {
   const { instance } = useMsal();
   const [isLoggingIn, setIsLoggingIn] = useState(false);

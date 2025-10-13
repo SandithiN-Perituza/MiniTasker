@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { msalInstance } from "../utils/msalConfig";
 import UserContext from "../context/UserContext";
 import { IoMenu } from "react-icons/io5";
+import * as microsoftTeams from "@microsoft/teams-js";
 
 export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();
@@ -15,7 +16,12 @@ export default function Sidebar({ open, onClose }) {
   }
 
   async function handleMicrosoftLogin() {
+    // Fallback ONLY when not inside Teams (SSO handled automatically there)
     try {
+      const inTeams = !!(await microsoftTeams.app.initialize()
+        .then(() => true)
+        .catch(() => false));
+      if (inTeams) return; // SSO already handled by TeamsAuth
       const loginResponse = await msalInstance.loginPopup({
         scopes: ["user.read"],
       });
@@ -84,6 +90,7 @@ export default function Sidebar({ open, onClose }) {
               >
                 Signup
               </Link>
+              {/* Fallback button only visible outside Teams */}
               <button
                 className="py-2 px-4 rounded hover:bg-blue-100 text-left"
                 onClick={handleMicrosoftLogin}

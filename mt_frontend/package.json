@@ -11,8 +11,8 @@
     "debug": "DEBUG=vite:* vite"
   },
   "dependencies": {
-    "@azure/msal-browser": "^4.21.1",
-    "@azure/msal-react": "^3.0.19",
+    "@azure/msal-browser": "^4.25.0",
+    "@azure/msal-react": "^3.0.20",
     "@microsoft/teams-js": "^2.19.0",
     "axios": "^1.11.0",
     "react": "^19.1.0",
