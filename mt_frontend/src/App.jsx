@@ -14,7 +14,7 @@ import Footer from "./components/Footer";
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  console.log("--- Sandithi's version - feature-microsoft-login ---");
+  console.log("--- kasundi's version - be-notification-new ---");
 
   return (
     <MsalProvider instance={msalInstance}>
