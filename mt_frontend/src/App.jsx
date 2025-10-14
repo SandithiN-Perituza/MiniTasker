@@ -14,33 +14,37 @@ import { useTeamsEnv } from "./context/TeamsEnvContext";
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { inTeams } = useTeamsEnv?.() || { inTeams: false }; // safe call during initial render
 
-  console.log("--- Sandithi's version - feature-microsoft-login ---");
+  function Shell() {
+    const { inTeams } = useTeamsEnv(); // now safely inside provider
+    return (
+      <Router>
+        <div className="flex flex-col min-h-screen bg-gray-50">
+          <Header onMenuClick={() => setSidebarOpen(true)} />
+          {!inTeams && (
+            <Sidebar
+              open={sidebarOpen}
+              onClose={() => setSidebarOpen(false)}
+            />
+          )}
+          <main className="flex-1 p-4">
+            <Routes>
+              <Route path="/" element={<TaskList />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </Router>
+    );
+  }
 
   return (
     <MsalProvider instance={msalInstance}>
       <UserProvider>
         <TeamsAuth>
-          <Router>
-            <div className="flex flex-col min-h-screen bg-gray-50">
-              <Header onMenuClick={() => setSidebarOpen(true)} />
-              {!inTeams && (
-                <Sidebar
-                  open={sidebarOpen}
-                  onClose={() => setSidebarOpen(false)}
-                />
-              )}
-              <main className="flex-1 p-4">
-                <Routes>
-                  <Route path="/" element={<TaskList />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/signup" element={<Signup />} />
-                </Routes>
-              </main>
-              <Footer />
-            </div>
-          </Router>
+          <Shell />
         </TeamsAuth>
       </UserProvider>
     </MsalProvider>

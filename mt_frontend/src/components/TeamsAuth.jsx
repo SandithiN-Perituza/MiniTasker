@@ -59,25 +59,27 @@ const TeamsAuth = ({ children }) => {
     }
 
     if (inTeams && error && !user) {
-      const isResourceMismatch = /resource/i.test(error) || /origin/i.test(error);
+      const hasAlt = !!import.meta.env.VITE_SSO_RESOURCE_ALT;
       return (
         <div className="flex flex-col justify-center items-center min-h-screen p-4 text-center">
-          <p className="text-red-600 font-medium mb-2">Automatic sign-in failed.</p>
-          <p className="text-sm text-gray-700 break-all">{error}</p>
-          {isResourceMismatch && (
-            <div className="mt-4 text-xs text-left max-w-md text-gray-600 space-y-2">
-              <p>Checklist:</p>
-              <ul className="list-disc ml-4 space-y-1">
-                <li>Manifest webApplicationInfo.resource matches Azure AD App ID URI.</li>
-                <li>That App ID URI is set as VITE_SSO_RESOURCE in .env.</li>
-                <li>Domain is in manifest validDomains and configured in AAD redirect URIs if needed.</li>
-                <li>Re-upload updated manifest to Teams after changes.</li>
-              </ul>
-            </div>
-          )}
-          <p className="text-sm text-gray-500 mt-6">
-            Reload this tab after fixing configuration.
-          </p>
+          <p className="text-red-600 font-medium mb-3">Automatic sign-in failed.</p>
+          <pre className="text-xs text-left bg-red-50 border border-red-200 rounded p-3 max-w-2xl overflow-auto whitespace-pre-wrap">
+            {error}
+          </pre>
+          <div className="mt-4 text-xs text-left max-w-2xl text-gray-700 space-y-1">
+            <p>Tips:</p>
+            <ul className="list-disc ml-4 space-y-1">
+              <li>Confirm Application ID URI(s) you intend to use.</li>
+              <li>If one form fails, try the other (simplified vs domain) — both now attempted automatically.</li>
+              {!hasAlt && (
+                <li>
+                  You can set VITE_SSO_RESOURCE_ALT to the domain-qualified URI:
+                  api://&lt;your-host&gt;/&lt;appId&gt;
+                </li>
+              )}
+              <li>After changing manifest or App ID URI, uninstall and re-add the app in Teams.</li>
+            </ul>
+          </div>
         </div>
       );
     }
