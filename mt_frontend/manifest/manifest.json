@@ -2,80 +2,43 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "version": "1.0.0",
-  "id": "3ee5758e-f933-4383-ba25-8c5f0fb848a4",
-  "packageName": "com.perituza.minitasker",
-  "developer": {
-    "name": "Sandithi and Kasundi",
-    "websiteUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
-    "privacyUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/privacy",
-    "termsOfUseUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/terms"
-  },
+  "id": "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
+  "packageName": "com.minitasker.app",
   "name": {
     "short": "MiniTasker",
-    "full": "MiniTasker Tasks Manager"
+    "full": "MiniTasker Workload Manager"
   },
   "description": {
-    "short": "Manage tasks within Teams",
-    "full": "A simplified Tasks management tool for your organization."
+    "short": "Manage tasks inside Teams",
+    "full": "A simplified workload management app for Teams"
   },
   "icons": {
     "outline": "outline.png",
     "color": "color.png"
   },
-  "accentColor": "#FF0000",
+  "developer": {
+    "name": "Sandithi Nethsiluni",
+    "websiteUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
+    "privacyUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/privacy",
+    "termsOfUseUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/terms"
+  },
   "staticTabs": [
     {
-      "entityId": "minitaskerTab",
+      "entityId": "minitasker",
       "name": "MiniTasker",
       "contentUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
       "websiteUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
-      "scopes": [
-        "personal"
-      ]
+      "scopes": ["personal"]
     }
   ],
+  "permissions": [],
   "validDomains": [
-    "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net"
+    "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
+    "app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net"
   ],
+  "accentColor": "#FFFFFF",
   "webApplicationInfo": {
-    "id": "3ee5758e-f933-4383-ba25-8c5f0fb848a4",
-    "resource": "api://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net"
-  },
-  "activities": {
-    "activityTypes": [
-      {
-        "type": "taskCreated",
-        "description": "Task Created Notification",
-        "templateText": "{actor} created task {taskId} for you"
-      },
-      {
-        "type": "taskUpdated",
-        "description": "Task Updated Notification",
-        "templateText": "{actor} updated task {taskId}"
-      },
-      {
-        "type": "taskCompleted",
-        "description": "Task Completed Notification",
-        "templateText": "Task {taskId} has been marked as completed by {actor}"
-      }
-    ]
-  },
-  "authorization": {
-    "permissions": {
-      "resourceSpecific": [
-        {
-          "type": "Delegated",
-          "name": "TeamsActivity.Send.User"
-        },
-        {
-          "type": "Delegated",
-          "name": "TeamsActivity.Send.Chat"
-        },
-        {
-          "type": "Delegated",
-          "name": "TeamsActivity.Send.Group"
-        }
-      ]
-    }
+    "id": "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
+    "resource": "api://f6c2a5e9-3bd5-4223-ad2c-618846a668c5"
   }
 }

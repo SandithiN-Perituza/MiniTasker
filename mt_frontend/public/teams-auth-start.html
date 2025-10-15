@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Teams Auth</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js" integrity="sha384-WbYpV2IIMwdFRWRRjZ0InqfoaOp5oH0orh4vK5m1j8ldHr2bqTrLszzbLQaGQJkv" crossorigin="anonymous"></script>
+  <script src="https://res.cdn.office.net/teams-js/2.19.0/js/MicrosoftTeams.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <h3>Signing you in...</h3>
+  <div id="status">Initializing Microsoft Teams authentication...</div>
+  <script>
+    (async function() {
+      const clientId = "3ee5758e-f933-4383-ba25-8c5f0fb848a4"; // keep synced with AAD app
+      const msalConfig = {
+        auth: {
+          clientId,
+          authority: "https://login.microsoftonline.com/common",
+          redirectUri: window.location.origin + "/teams-auth-start.html"
+        },
+        cache: { cacheLocation: "sessionStorage" },
+        // NEW: needed for embedded webview redirects
+        system: { allowRedirectInIframe: true }
+      };
+      const msalInstance = new msal.PublicClientApplication(msalConfig);
+      await msalInstance.initialize(); // NEW: ensure initialized
+
+      function update(msg) {
+        const el = document.getElementById("status");
+        if (el) el.textContent = msg;
+        console.log("[TeamsAuthPopup]", msg);
+      }
+
+      try {
+        await microsoftTeams.app.initialize();
+      } catch (e) {
+        return microsoftTeams.authentication.notifyFailure("Teams init failed: " + (e.message || e));
+      }
+
+      // Try SSO first (avoid extra prompts if possible)
+      try {
+        const ssoToken = await microsoftTeams.authentication.getAuthToken({ silent: true });
+        update("Obtained SSO token.");
+        return microsoftTeams.authentication.notifySuccess(ssoToken);
+      } catch {
+        update("Standard SSO path failed, proceeding with MSAL interactive login...");
+      }
+
+      try {
+        const loginResponse = await msalInstance.loginPopup({
+          scopes: ["User.Read"],
+          prompt: "select_account"
+        });
+        update("Interactive login complete. Returning id token.");
+        // Prefer idToken for backend mapping if that's what your API expects
+        return microsoftTeams.authentication.notifySuccess(loginResponse.idToken);
+      } catch (e) {
+        console.error(e);
+        return microsoftTeams.authentication.notifyFailure("Interactive login failed: " + (e.message || e));
+      }
+    })();
+  </script>
+</body>
+</html>

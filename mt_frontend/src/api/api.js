@@ -1,32 +1,325 @@
 // const API_URL = "https://localhost:7296/api";
 const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net/api";
-import { getCurrentUser } from "../utils/auth.js"; 
+
 // Tasks
-// Fetch all tasks
-// export async function fetchTasks() {
-//   const res = await fetch(`${API_URL}/tasks`);
-//   return res.json();
+
+import { msalInstance, ensureMsalInitialized } from "../authConfig";
+import { getCurrentUser } from "../utils/auth";
+
+// export async function getAuthToken() {
+//   try {
+//     // First try to get active account
+//     let account = msalInstance.getActiveAccount();
+    
+//     // If no active account, try to get any available account
+//     if (!account) {
+//       const accounts = msalInstance.getAllAccounts();
+//       if (accounts.length > 0) {
+//         account = accounts[0];
+//         msalInstance.setActiveAccount(account);
+//         console.log("Set active account:", account.username);
+//       } else {
+//         console.log("No MSAL accounts found");
+//         return null;
+//       }
+//     }
+
+//     console.log("Using account for token:", account.username);
+
+//     // Try silent token acquisition
+//     const response = await msalInstance.acquireTokenSilent({
+//       scopes: ["User.Read"],
+//       account: account,
+//     });
+
+//     console.log("✅ Successfully acquired MSAL token");
+//     return response.accessToken;
+//   } catch (error) {
+//     console.error("❌ Token acquisition failed:", error);
+    
+//     // If silent acquisition fails, try popup (optional)
+//     try {
+//       console.log("Trying popup token acquisition...");
+//       const response = await msalInstance.acquireTokenPopup({
+//         scopes: ["User.Read"],
+//       });
+      
+//       console.log("✅ Successfully acquired token via popup");
+//       return response.accessToken;
+//     } catch (popupError) {
+//       console.error("❌ Popup token acquisition also failed:", popupError);
+//       return null;
+//     }
+//   }
+// }
+export async function getAuthToken() {
+  console.log("Attempting to get authentication token...");
+  
+  try {
+    // Ensure MSAL is initialized
+    await ensureMsalInitialized();
+    
+    const accounts = msalInstance.getAllAccounts();
+    console.log("Available accounts:", accounts.length);
+    
+    if (accounts.length === 0) {
+      throw new Error("No Microsoft accounts found. Please log in with Microsoft first.");
+    }
+    
+    const account = accounts[0];
+    console.log("Using account for token:", account.username);
+    
+    // Use the API scope instead of User.Read for backend authentication
+    const tokenRequest = {
+      scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"], // Use the API scope
+      account: account,
+      forceRefresh: false // Let MSAL handle caching
+    };
+    
+    console.log("Token request:", tokenRequest);
+    
+    try {
+      // Try silent token acquisition first
+      const response = await msalInstance.acquireTokenSilent(tokenRequest);
+      console.log("✅ Successfully acquired MSAL token (silent)");
+      
+      // Debug: show token claims
+      const tokenPayload = JSON.parse(atob(response.accessToken.split('.')[1]));
+      console.log("Token claims:", {
+        aud: tokenPayload.aud,
+        oid: tokenPayload.oid,
+        sub: tokenPayload.sub,
+        upn: tokenPayload.upn || tokenPayload.preferred_username
+      });
+      
+      return response.accessToken;
+    } catch (silentError) {
+      console.log("Silent token acquisition failed, trying popup...", silentError);
+      
+      // Fallback to popup with same simple scope
+      const response = await msalInstance.acquireTokenPopup(tokenRequest);
+      console.log("✅ Successfully acquired MSAL token (popup)");
+      
+      // Debug: show token claims
+      const tokenPayload = JSON.parse(atob(response.accessToken.split('.')[1]));
+      console.log("Token claims:", {
+        aud: tokenPayload.aud,
+        oid: tokenPayload.oid,
+        sub: tokenPayload.sub,
+        upn: tokenPayload.upn || tokenPayload.preferred_username
+      });
+      
+      return response.accessToken;
+    }
+    
+  } catch (error) {
+    console.error("❌ Failed to get authentication token:", error);
+    throw new Error(`Token acquisition failed: ${error.message}`);
+  }
+}
+
+// Send test notification with Azure AD Object ID
+// export async function sendTestNotification() {
+//   console.log("🔔 Starting notification test...");
+  
+//   const currentUser = getCurrentUser();
+//   console.log("Current user:", currentUser);
+  
+//   if (!currentUser) {
+//     throw new Error("Please log in to send notifications");
+//   }
+
+//   console.log("Attempting to get authentication token...");
+//   const token = await getAuthToken();
+  
+//   if (!token) {
+//     throw new Error("Could not acquire authentication token. Please try logging in with Microsoft account first.");
+//   }
+  
+//   console.log("✅ Got authentication token, sending notification...");
+
+//   // Extract Azure AD Object ID from token instead of using local database ID
+//   let azureUserId;
+//   try {
+//     const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+//     azureUserId = tokenPayload.oid || tokenPayload.sub; // Object ID or Subject ID
+//     console.log("Using Azure AD User ID from token:", azureUserId);
+//   } catch (error) {
+//     console.error("Failed to parse token, falling back to local user ID");
+//     azureUserId = currentUser.id.toString();
+//   }
+
+//   const requestBody = {
+//     message: "Notification invoked",
+//     userId: azureUserId, // Use Azure AD Object ID, not local database ID
+//   };
+
+//   console.log("Request details:", {
+//     url: `${API_URL}/notification/send-test`,
+//     body: requestBody,
+//     hasToken: !!token,
+//     tokenSnippet: token ? `${token.substring(0, 20)}...` : 'none'
+//   });
+
+//   try {
+//     const response = await fetch(`${API_URL}/notification/send-test`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//         Authorization: `Bearer ${token}`,
+//       },
+//       body: JSON.stringify(requestBody),
+//     });
+
+//     console.log("Response status:", response.status);
+
+//     if (!response.ok) {
+//       const errorText = await response.text();
+//       console.error("❌ Error response:", errorText);
+      
+//       if (response.status === 401) {
+//         throw new Error("Authentication failed. Your Azure AD token is not valid for this API. Please check your backend authentication configuration.");
+//       }
+      
+//       throw new Error(`Notification failed (${response.status}): ${errorText || 'Unknown error'}`);
+//     }
+
+//     const result = await response.json();
+//     console.log("✅ Notification sent successfully:", result);
+//     return result;
+//   } catch (error) {
+//     console.error("❌ Notification request failed:", error);
+//     throw error;
+//   }
 // }
 
-export async function fetchTasks() {
-    try {
-        const response = await fetch(`${API_URL}/tasks`);
+export async function sendTestNotification() {
+  console.log("🔔 Starting notification test...");
 
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
+  const currentUser = getCurrentUser();
+  console.log("Current user:", currentUser);
+
+  if (!currentUser) {
+    throw new Error("Please log in to send notifications");
+  }
+
+  console.log("Attempting to get authentication token...");
+  let token;
+  
+  try {
+    token = await getAuthToken();
+  } catch (tokenError) {
+    console.error("❌ Token acquisition failed:", tokenError);
+    throw new Error("Could not acquire authentication token. Please try logging in with Microsoft account first.");
+  }
+
+  if (!token) {
+    throw new Error("Could not acquire authentication token. Please try logging in with Microsoft account first.");
+  }
+
+  console.log("✅ Got authentication token, sending notification...");
+
+  // Extract user information from token
+  let azureUserId, userEmail, userName;
+  try {
+    const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+    azureUserId = tokenPayload.oid || tokenPayload.sub;
+    userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
+    userName = tokenPayload.name;
+    
+    console.log("Token payload:", {
+      azureUserId,
+      userEmail,
+      userName,
+      audience: tokenPayload.aud
+    });
+  } catch (error) {
+    console.error("Failed to parse token:", error);
+    azureUserId = currentUser.id?.toString();
+    userEmail = currentUser.email;
+    userName = currentUser.name;
+  }
+
+  // Enhanced request body with more user information
+  const requestBody = {
+    message: "Test notification from MiniTasker",
+    userId: azureUserId,
+    userEmail: userEmail,
+    userName: userName,
+    timestamp: new Date().toISOString()
+  };
+
+  console.log("Request details:", {
+    url: `${API_URL}/notification/send-test`,
+    body: requestBody,
+    hasToken: !!token,
+    tokenSnippet: token ? `${token.substring(0, 20)}...` : 'none'
+  });
+
+  try {
+    const response = await fetch(`${API_URL}/notification/send-test`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    console.log("Response status:", response.status);
+    console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+
+    // Get response text first to handle both JSON and plain text responses
+    const responseText = await response.text();
+    console.log("Response body:", responseText);
+
+    if (!response.ok) {
+      console.error("❌ Error response:", responseText);
+      
+      if (response.status === 401) {
+        throw new Error("Authentication failed. Your Azure AD token is not valid for this API. Please check your backend authentication configuration.");
+      } else if (response.status === 500) {
+        // Parse the error details if available
+        let errorDetails = responseText;
+        try {
+          const errorJson = JSON.parse(responseText);
+          errorDetails = errorJson.message || errorJson.error || errorJson.title || responseText;
+        } catch (e) {
+          // Keep original text if not JSON
         }
-
-        const text = await response.text();
-
-        if (!text) {
-            throw new Error("Empty response from server");
-        }
-
-        return JSON.parse(text);
-    } catch (error) {
-        console.error("Error fetching tasks:", error.message);
-        return []; // Return empty array to avoid crashing the UI
+        
+        throw new Error(`Server error (500): ${errorDetails}. Check backend logs for more details.`);
+      }
+      
+      throw new Error(`Notification failed (${response.status}): ${responseText || 'Unknown error'}`);
     }
+
+    // Parse response as JSON if possible
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      result = { message: responseText, success: true };
+    }
+
+    console.log("✅ Notification sent successfully:", result);
+    return result;
+  } catch (fetchError) {
+    console.error("❌ Notification request failed:", fetchError);
+    
+    // Provide more helpful error messages
+    if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+      throw new Error("Network error: Unable to connect to the backend server. Please check if the backend is running.");
+    }
+    
+    throw fetchError;
+  }
+}
+
+// Fetch all tasks
+export async function fetchTasks() {
+  const res = await fetch(`${API_URL}/tasks`);
+  return res.json();
 }
 
 export async function fetchUserTasks() {
@@ -47,29 +340,11 @@ export async function fetchUserTasks() {
 
 // Create a new task
 export async function createTask(task) {
-  const token = localStorage.getItem("accessToken");
-  const currentUser = getCurrentUser();
-  const actorName = currentUser?.name || "Unknown";
-
-  const taskWithActor = {
-    ...task,
-    actorName: actorName, // ✅ Add actor name
-  };
-
   const res = await fetch(`${API_URL}/tasks`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(taskWithActor),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(task),
   });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Task creation failed: ${errorText}`);
-  }
-
   return res.json();
 }
 
@@ -122,6 +397,24 @@ export async function loginUser(email, password) {
     body: JSON.stringify({ email, password }),
   });
   if (!res.ok) return null;
+  return res.json();
+}
+
+// NEW / UPDATED: Microsoft authentication (replaces upsertMicrosoftUser)
+export async function microsoftAuth(token) {
+  const res = await fetch(`${API_URL}/auth/microsoft`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (res.status === 404) {
+    throw new Error("404: /auth/microsoft endpoint not found.");
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Microsoft auth failed (status ${res.status}) ${text}`);
+  }
   return res.json();
 }
 
