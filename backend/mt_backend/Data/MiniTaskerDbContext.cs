@@ -16,12 +16,29 @@ namespace mt_backend.Data
         public DbSet<Subtask> Subtasks { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+
+            // ✅ Explicitly configure User.Id to avoid unwanted ALTER COLUMN
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.HasKey(u => u.Id);
+                entity.Property(u => u.Id).ValueGeneratedOnAdd();
+            });
+
             modelBuilder.Entity<TaskItem>()
                 .HasOne(t => t.AssignedUser)
                 .WithMany(u => u.Tasks)
                 .HasForeignKey(t => t.AssignedTo)
                 .OnDelete(DeleteBehavior.SetNull);
 
+            modelBuilder.Entity<ErrorLog>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).ValueGeneratedOnAdd();
+                entity.Property(e => e.Message).IsRequired().HasColumnType("text");
+                entity.Property(e => e.StackTrace).IsRequired().HasColumnType("text");
+                entity.Property(e => e.Source).IsRequired().HasMaxLength(500);
+                entity.Property(e => e.Timestamp).IsRequired().HasColumnType("datetime");
+            });
             // Seed Users
             modelBuilder.Entity<User>().HasData(
                 new User { Id = 1, Name = "Alice", Email = "alice@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow },
@@ -31,6 +48,24 @@ namespace mt_backend.Data
                 new User { Id = 5, Name = "Jenny", Email = "jenny@example.com", Password = "hashed-password-1", CreatedAt = DateTime.UtcNow }
             );
 
+            modelBuilder.Entity<ErrorLog>().HasData(
+                new ErrorLog
+                {
+                    Id = 1,
+                    Timestamp = DateTime.UtcNow,
+                    Message = "Initial error log entry",
+                    StackTrace = "Stack trace goes here",
+                    Source = "System"
+                },
+                new ErrorLog
+                {
+                    Id = 2,
+                    Timestamp = DateTime.UtcNow,
+                    Message = "Another error log entry",
+                    StackTrace = "Another stack trace",
+                    Source = "Application"
+                }
+            );
             // TaskItem → SubTask
             modelBuilder.Entity<Subtask>()
                 .HasOne(s => s.Task)

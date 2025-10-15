@@ -2,25 +2,62 @@
 using mt_backend.Models;
 using mt_backend.Services.Interfaces;
 
-public class ErrorLogger : IErrorLogger
+namespace mt_backend.Services
 {
-    private readonly MiniTaskerDbContext _context;
-
-    public ErrorLogger(MiniTaskerDbContext context)
+    public class ErrorLogger : IErrorLogger
     {
-        _context = context;
-    }
+        private readonly MiniTaskerDbContext _context;
 
-    public async Task LogAsync(string message, string stackTrace, string source)
-    {
-        var log = new ErrorLog
+        public ErrorLogger(MiniTaskerDbContext context)
         {
-            Message = message,
-            StackTrace = stackTrace,
-            Source = source
-        };
+            _context = context;
+        }
 
-        _context.ErrorLogs.Add(log);
-        await _context.SaveChangesAsync();
+        public async Task LogAsync(string message, string stackTrace, string source)
+        {
+            try
+            {
+                // Log to console first for immediate visibility
+                Console.WriteLine($"📝 ERROR LOG ATTEMPT: [{source}] {message}");
+                
+                var log = new ErrorLog
+                {
+                    Message = message,
+                    StackTrace = stackTrace,
+                    Source = source,
+                    Timestamp = DateTime.UtcNow
+                };
+
+                _context.ErrorLogs.Add(log);
+                await _context.SaveChangesAsync();
+
+                // Success log to console
+                Console.WriteLine($"✅ ERROR LOG SAVED: [{source}] {message}");
+                if (!string.IsNullOrEmpty(stackTrace) && stackTrace != "No stack trace")
+                {
+                    Console.WriteLine($"   Stack: {stackTrace}");
+                }
+            }
+            catch (Exception ex)
+            {
+                // If logging fails, at least log to console
+                Console.WriteLine($"❌ LOGGING FAILED: {ex.Message}");
+                Console.WriteLine($"   Exception Type: {ex.GetType().Name}");
+                Console.WriteLine($"   Exception Stack: {ex.StackTrace}");
+                Console.WriteLine($"   Original message: {message}");
+                Console.WriteLine($"   Original source: {source}");
+
+                // Try to get more details about the database connection
+                try
+                {
+                    var canConnect = await _context.Database.CanConnectAsync();
+                    Console.WriteLine($"   Database CanConnect: {canConnect}");
+                }
+                catch (Exception dbEx)
+                {
+                    Console.WriteLine($"   Database Connection Test Failed: {dbEx.Message}");
+                }
+            }
+        }
     }
 }

@@ -3,7 +3,7 @@ using mt_backend.Models;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace mt_backend.Services
+namespace mt_backend.Services.Interfaces
 {
     public interface ITaskService
     {

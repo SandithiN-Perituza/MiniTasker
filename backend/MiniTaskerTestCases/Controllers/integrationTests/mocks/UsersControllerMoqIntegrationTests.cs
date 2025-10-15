@@ -47,7 +47,7 @@ namespace MiniTasker.Tests.Controllers.integrationTests.mocks
         }
 
         [Test]
-        public async Task GetUsers_ReturnsListOfUsers()
+        public async Task GetUsers_ReturnsListOfUsers()z
         {
             // Arrange
             var users = new List<User>
