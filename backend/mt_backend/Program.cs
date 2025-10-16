@@ -11,14 +11,28 @@ var builder = WebApplication.CreateBuilder(args);
 var configuration = builder.Configuration;
 var azureAdSection = configuration.GetSection("AzureAd");
 
+// Enhanced configuration validation with detailed logging
+var instance = azureAdSection["Instance"];
+var tenantId = azureAdSection["TenantId"];
+var clientId = azureAdSection["ClientId"];
+var clientSecret = azureAdSection["ClientSecret"];
+var frontendClientId = configuration["FrontendApp:ClientId"];
+
+
+if (!string.IsNullOrEmpty(clientSecret))
+{
+    Console.WriteLine($"   ClientSecret Format: {(clientSecret.Contains('~') ? "✅ Valid format (contains ~)" : "⚠️ May be invalid format")}");
+}
+
 bool hasValidAzureAd = azureAdSection.Exists() &&
-                       !string.IsNullOrEmpty(azureAdSection["Instance"]) &&
-                       !string.IsNullOrEmpty(azureAdSection["TenantId"]) &&
-                       !string.IsNullOrEmpty(azureAdSection["ClientId"]);
+                       !string.IsNullOrEmpty(instance) &&
+                       !string.IsNullOrEmpty(tenantId) &&
+                       !string.IsNullOrEmpty(clientId) &&
+                       !string.IsNullOrEmpty(clientSecret);
 
 if (hasValidAzureAd)
 {
-    Console.WriteLine("✅ Configuring Azure AD authentication...");
+    Console.WriteLine("✅ Configuring Azure AD authentication with Client Secret...");
 
     try
     {
@@ -33,6 +47,7 @@ if (hasValidAzureAd)
     catch (Exception ex)
     {
         Console.WriteLine($"⚠️ Failed to configure Microsoft Identity Web: {ex.Message}");
+        Console.WriteLine($"   Exception Type: {ex.GetType().Name}");
         Console.WriteLine("🔄 Falling back to basic JWT authentication...");
         
         // Fallback to basic JWT authentication
@@ -44,15 +59,20 @@ if (hasValidAzureAd)
                     ValidateIssuer = true,
                     ValidIssuers = new[]
                     {
-                        $"https://login.microsoftonline.com/{azureAdSection["TenantId"]}/v2.0",
-                        $"https://sts.windows.net/{azureAdSection["TenantId"]}/"
+                        $"https://login.microsoftonline.com/{tenantId}/v2.0",
+                        $"https://sts.windows.net/{tenantId}/"
                     },
                     ValidateAudience = true,
                     ValidAudiences = new[]
                     {
-                        azureAdSection["ClientId"],
-                        "00000003-0000-0000-c000-000000000000", // Microsoft Graph
-                        $"api://{azureAdSection["ClientId"]}"
+                        // Backend API
+                        clientId,
+                        $"api://{clientId}",
+                        // Frontend app (for cross-app tokens)
+                        frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
+                        $"api://{frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"}",
+                        // Microsoft Graph
+                        "00000003-0000-0000-c000-000000000000"
                     },
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
@@ -65,18 +85,41 @@ if (hasValidAzureAd)
 }
 else
 {
-    Console.WriteLine("⚠️ Azure AD not configured, using fallback authentication...");
+    var missingFields = new List<string>();
+    if (string.IsNullOrEmpty(instance)) missingFields.Add("Instance");
+    if (string.IsNullOrEmpty(tenantId)) missingFields.Add("TenantId");
+    if (string.IsNullOrEmpty(clientId)) missingFields.Add("ClientId");
+    if (string.IsNullOrEmpty(clientSecret)) missingFields.Add("ClientSecret");
+
+    Console.WriteLine($"⚠️ Azure AD not fully configured. Missing: {string.Join(", ", missingFields)}");
+    Console.WriteLine("🔄 Using fallback authentication...");
 
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         .AddJwtBearer(options =>
         {
             options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
             {
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                ValidateLifetime = false,
-                ValidateIssuerSigningKey = false,
-                RequireExpirationTime = false
+                ValidateIssuer = true,
+                ValidIssuers = new[]
+                {
+                    $"https://login.microsoftonline.com/{tenantId}/v2.0",
+                    $"https://sts.windows.net/{tenantId}/"
+                },
+                ValidateAudience = true,
+                ValidAudiences = new[]
+                {
+                    // Backend API
+                    clientId,
+                    $"api://{clientId}",
+                    // Frontend app (for cross-app tokens)
+                    frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
+                    $"api://{frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"}",
+                    // Microsoft Graph
+                    "00000003-0000-0000-c000-000000000000"
+                },
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ClockSkew = TimeSpan.FromMinutes(5)
             };
         });
 }
@@ -109,6 +152,7 @@ builder.Services.AddScoped<INotificationService>(serviceProvider =>
         try
         {
             graphTokenService = serviceProvider.GetService<IGraphTokenService>();
+            Console.WriteLine($"✅ GraphTokenService resolved: {graphTokenService != null}");
         }
         catch (Exception ex)
         {
@@ -195,13 +239,24 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Diagnostics
+Console.WriteLine("🔧 Registering API endpoints...");
+
+// Enhanced diagnostics endpoint
 app.MapGet("/", () => new
 {
     message = "MiniTasker API is running!",
     version = "Clean notification system with Graph API - button triggered",
     timestamp = DateTime.UtcNow,
     azureAdConfigured = hasValidAzureAd,
+    configuration = new
+    {
+        azureAdInstanceSet = !string.IsNullOrEmpty(instance),
+        azureAdTenantIdSet = !string.IsNullOrEmpty(tenantId),
+        azureAdClientIdSet = !string.IsNullOrEmpty(clientId),
+        azureAdClientSecretSet = !string.IsNullOrEmpty(clientSecret),
+        clientSecretLength = clientSecret?.Length ?? 0,
+        clientSecretFormat = clientSecret?.Contains('~') == true ? "Valid" : "Invalid"
+    },
     features = new
     {
         buttonTriggeredNotifications = true,
@@ -211,6 +266,54 @@ app.MapGet("/", () => new
     }
 });
 
+// Configuration debug endpoint
+app.MapGet("/debug/config", () => new
+{
+    azureAdConfigurationStatus = new
+    {
+        instance = !string.IsNullOrEmpty(instance) ? "Set" : "Missing",
+        tenantId = !string.IsNullOrEmpty(tenantId) ? "Set" : "Missing",
+        clientId = !string.IsNullOrEmpty(clientId) ? "Set" : "Missing",
+        clientSecret = !string.IsNullOrEmpty(clientSecret) ? $"Set (Length: {clientSecret.Length})" : "Missing",
+        clientSecretFormat = !string.IsNullOrEmpty(clientSecret) && clientSecret.Contains('~') ? "Valid Azure AD format" : "Invalid format",
+        hasValidConfiguration = hasValidAzureAd
+    },
+    environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production",
+    timestamp = DateTime.UtcNow
+});
+
+// Routes debugging endpoint
+app.MapGet("/debug/routes", () => new
+{
+    availableRoutes = new[]
+    {
+        "GET /",
+        "GET /debug/config",
+        "GET /debug/routes",
+        "GET /health",
+        "GET /api/notification/test-logging",
+        "GET /api/notification/test-exception",
+        "GET /api/notification/error-logs",
+        "POST /api/notification/send-test"
+    },
+    controllersRegistered = "Yes - app.MapControllers() called",
+    corsConfigured = "Yes - AllowFrontend policy active",
+    timestamp = DateTime.UtcNow
+});
+
+// Simple notification test endpoint (no auth required)
+app.MapGet("/api/notification/ping", () => new
+{
+    message = "Notification controller is accessible",
+    timestamp = DateTime.UtcNow,
+    availableEndpoints = new[]
+    {
+        "GET /api/notification/test-logging",
+        "GET /api/notification/test-exception", 
+        "GET /api/notification/error-logs",
+        "POST /api/notification/send-test (requires auth)"
+    }
+});
 
 app.MapGet("/health", () => new
 {

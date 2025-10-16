@@ -103,7 +103,7 @@ namespace mt_backend.Services
                 // Build the notification URL (you can customize this)
                 var notificationUrl = "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/";
 
-                // Prepare the Microsoft Graph API request payload
+                // Prepare the Microsoft Graph API request payload for Teams Activity Feed
                 var requestBody = new
                 {
                     topic = new
@@ -112,16 +112,15 @@ namespace mt_backend.Services
                         value = notificationUrl,
                         webUrl = notificationUrl
                     },
-                    activityType = "userNotification", // Custom activity type
+                    activityType = "taskCreated", // Use a more specific activity type
                     previewText = new
                     {
                         content = message
                     },
                     templateParameters = new[]
                     {
-                        new { name = "notificationMessage", value = message },
-                        new { name = "timestamp", value = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") },
-                        new { name = "userId", value = userId }
+                        new { name = "taskTitle", value = message },
+                        new { name = "createdDateTime", value = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ") }
                     }
                 };
 
@@ -139,31 +138,45 @@ namespace mt_backend.Services
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
 
+                await _errorLogger.LogAsync(
+                    "About to send Graph API request",
+                    $"Payload: {json}",
+                    "NotificationService.SendTeamsNotificationAsync"
+                );
+
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
                 var response = await httpClient.PostAsync(
                     $"https://graph.microsoft.com/v1.0/users/{userId}/teamwork/sendActivityNotification",
                     content);
 
+                var responseContent = await response.Content.ReadAsStringAsync();
+
+                await _errorLogger.LogAsync(
+                    $"Graph API Response: {response.StatusCode}",
+                    $"Response Content: {responseContent}, Headers: {string.Join(", ", response.Headers.Select(h => $"{h.Key}={string.Join(",", h.Value)}"))}",
+                    "NotificationService.SendTeamsNotificationAsync"
+                );
+
                 if (response.IsSuccessStatusCode)
                 {
                     await _errorLogger.LogAsync(
                         $"Teams notification sent successfully via Graph API to user {userId}",
-                        $"Message: {message}",
+                        $"Message: {message}, Response: {responseContent}",
                         "NotificationService.SendTeamsNotificationAsync"
                     );
                     Console.WriteLine($"🚀 TEAMS NOTIFICATION: Successfully sent to user {userId}");
                     Console.WriteLine($"   Message: {message}");
+                    Console.WriteLine($"   Response: {responseContent}");
                 }
                 else
                 {
-                    var errorContent = await response.Content.ReadAsStringAsync();
                     await _errorLogger.LogAsync(
                         $"Microsoft Graph API Error: {response.StatusCode}",
-                        $"Response: {errorContent}, User: {userId}, Message: {message}",
+                        $"Response: {responseContent}, User: {userId}, Message: {message}",
                         "NotificationService.SendTeamsNotificationAsync"
                     );
                     Console.WriteLine($"❌ GRAPH API ERROR: {response.StatusCode}");
-                    Console.WriteLine($"   Response: {errorContent}");
+                    Console.WriteLine($"   Response: {responseContent}");
 
                     // Fallback to logging the notification
                     Console.WriteLine($"📝 NOTIFICATION (Fallback): {message} for user {userId}");

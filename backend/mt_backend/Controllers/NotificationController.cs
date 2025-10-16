@@ -143,13 +143,15 @@ namespace mt_backend.Controllers
                     "NotificationController.SendTestNotification"
                 );
 
-                // Get tenant ID and client ID from configuration
+                // Get configuration for both frontend and backend
                 var tenantId = _configuration["AzureAd:TenantId"] ?? "7b967b11-c0b9-402b-b483-d694f50dfb82";
-                var clientId = _configuration["AzureAd:ClientId"] ?? "59aef810-e681-4b84-bc17-2561fe854c0e";
+                var backendClientId = _configuration["AzureAd:ClientId"] ?? "59aef810-e681-4b84-bc17-2561fe854c0e";
+                var frontendClientId = _configuration["FrontendApp:ClientId"] ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5";
+                var audience = _configuration["AzureAd:Audience"] ?? $"api://{backendClientId}";
 
                 await _errorLogger.LogAsync(
                     "Configuration loaded",
-                    $"TenantId: {tenantId}, ClientId: {clientId}",
+                    $"TenantId: {tenantId}, BackendClientId: {backendClientId}, FrontendClientId: {frontendClientId}, Audience: {audience}",
                     "NotificationController.SendTestNotification"
                 );
 
@@ -171,7 +173,7 @@ namespace mt_backend.Controllers
                     "NotificationController.SendTestNotification"
                 );
 
-                // Validate the Azure AD token
+                // Validate the Azure AD token - accept tokens from frontend for backend audience
                 var validationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
@@ -183,9 +185,15 @@ namespace mt_backend.Controllers
                     ValidateAudience = true,
                     ValidAudiences = new[]
                     {
-                        clientId,
-                        "00000003-0000-0000-c000-000000000000", // Microsoft Graph
-                        $"api://{clientId}"
+                        // Backend API audiences
+                        backendClientId,
+                        $"api://{backendClientId}",
+                        audience,
+                        // Frontend client ID (for tokens issued to frontend)
+                        frontendClientId,
+                        $"api://{frontendClientId}",
+                        // Microsoft Graph (for broader compatibility)
+                        "00000003-0000-0000-c000-000000000000"
                     },
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
@@ -235,7 +243,7 @@ namespace mt_backend.Controllers
                 {
                     await _errorLogger.LogAsync(
                         "Starting token validation",
-                        "Validating JWT token",
+                        $"Valid audiences: {string.Join(", ", validationParameters.ValidAudiences)}",
                         "NotificationController.SendTestNotification"
                     );
 
@@ -249,11 +257,28 @@ namespace mt_backend.Controllers
                 }
                 catch (SecurityTokenValidationException validationEx)
                 {
-                    await _errorLogger.LogAsync(
-                        $"Token validation failed: {validationEx.Message}",
-                        validationEx.StackTrace ?? "No stack trace",
-                        "NotificationController.SendTestNotification"
-                    );
+                    // Parse the token to see its claims for debugging
+                    try
+                    {
+                        var jwtToken = handler.ReadJwtToken(token);
+                        var audClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == "aud")?.Value;
+                        var issClaim = jwtToken.Claims.FirstOrDefault(c => c.Type == "iss")?.Value;
+                        
+                        await _errorLogger.LogAsync(
+                            $"Token validation failed: {validationEx.Message}",
+                            $"Token aud: {audClaim}, Token iss: {issClaim}, Expected audiences: {string.Join(", ", validationParameters.ValidAudiences)}",
+                            "NotificationController.SendTestNotification"
+                        );
+                    }
+                    catch
+                    {
+                        await _errorLogger.LogAsync(
+                            $"Token validation failed: {validationEx.Message}",
+                            validationEx.StackTrace ?? "No stack trace",
+                            "NotificationController.SendTestNotification"
+                        );
+                    }
+
                     return Unauthorized(new
                     {
                         message = "Invalid or expired token",
@@ -287,11 +312,17 @@ namespace mt_backend.Controllers
                              principal.FindFirst(ClaimTypes.Name)?.Value ??
                              "Unknown User";
 
+                await _errorLogger.LogAsync(
+                    "User ID extraction details",
+                    $"oid claim: {principal.FindFirst("oid")?.Value}, sub claim: {principal.FindFirst("sub")?.Value}, nameidentifier: {principal.FindFirst(ClaimTypes.NameIdentifier)?.Value}, final userId: {currentUserId}",
+                    "NotificationController.SendTestNotification"
+                );
+
                 if (string.IsNullOrEmpty(currentUserId))
                 {
                     await _errorLogger.LogAsync(
                         "User ID not found in token claims",
-                        $"Available claims: {string.Join(", ", principal.Claims.Select(c => c.Type))}",
+                        $"Available claims: {string.Join(", ", principal.Claims.Select(c => $"{c.Type}={c.Value}"))}",
                         "NotificationController.SendTestNotification"
                     );
                     return Unauthorized(new { message = "User ID not found in token" });
@@ -374,6 +405,79 @@ namespace mt_backend.Controllers
                 {
                     success = false,
                     error = "Failed to send notification",
+                    details = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        /// Test endpoint to inspect the JWT token being sent from frontend
+        /// </summary>
+        [HttpPost("debug-token")]
+        [AllowAnonymous]
+        public async Task<IActionResult> DebugToken()
+        {
+            try
+            {
+                var authHeader = Request.Headers["Authorization"].ToString();
+                if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
+                {
+                    return Ok(new
+                    {
+                        success = false,
+                        message = "No Authorization header found",
+                        authHeader = authHeader
+                    });
+                }
+
+                var token = authHeader.Substring("Bearer ".Length);
+                var handler = new JwtSecurityTokenHandler();
+                
+                try
+                {
+                    var jwtToken = handler.ReadJwtToken(token);
+                    
+                    var claims = jwtToken.Claims.ToDictionary(c => c.Type, c => c.Value);
+                    
+                    await _errorLogger.LogAsync(
+                        "Token debug inspection",
+                        $"Token claims: {string.Join(", ", claims.Select(kvp => $"{kvp.Key}={kvp.Value}"))}",
+                        "NotificationController.DebugToken"
+                    );
+
+                    return Ok(new
+                    {
+                        success = true,
+                        message = "Token parsed successfully",
+                        tokenInfo = new
+                        {
+                            header = jwtToken.Header,
+                            audience = jwtToken.Claims.FirstOrDefault(c => c.Type == "aud")?.Value,
+                            issuer = jwtToken.Claims.FirstOrDefault(c => c.Type == "iss")?.Value,
+                            subject = jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value,
+                            objectId = jwtToken.Claims.FirstOrDefault(c => c.Type == "oid")?.Value,
+                            appId = jwtToken.Claims.FirstOrDefault(c => c.Type == "appid")?.Value,
+                            allClaims = claims
+                        }
+                    });
+                }
+                catch (Exception ex)
+                {
+                    return Ok(new
+                    {
+                        success = false,
+                        message = "Failed to parse token",
+                        error = ex.Message,
+                        tokenLength = token.Length
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    error = "Token debug failed",
                     details = ex.Message
                 });
             }

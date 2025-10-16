@@ -1,1 +1,7 @@
 ﻿.vs/
+**/appsettings.Development.json
+**/appsettings.Production.json
+**/appsettings.Local.json
+**/.env
+**/secrets.json
+**/appsettings.json
