@@ -71,9 +71,9 @@ export async function getAuthToken() {
     
     // Use the API scope instead of User.Read for backend authentication
     const tokenRequest = {
-      scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"], // Use the API scope
+      scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"],
       account: account,
-      forceRefresh: false // Let MSAL handle caching
+      forceRefresh: false
     };
     
     console.log("Token request:", tokenRequest);
@@ -117,81 +117,6 @@ export async function getAuthToken() {
     throw new Error(`Token acquisition failed: ${error.message}`);
   }
 }
-
-// Send test notification with Azure AD Object ID
-// export async function sendTestNotification() {
-//   console.log("🔔 Starting notification test...");
-  
-//   const currentUser = getCurrentUser();
-//   console.log("Current user:", currentUser);
-  
-//   if (!currentUser) {
-//     throw new Error("Please log in to send notifications");
-//   }
-
-//   console.log("Attempting to get authentication token...");
-//   const token = await getAuthToken();
-  
-//   if (!token) {
-//     throw new Error("Could not acquire authentication token. Please try logging in with Microsoft account first.");
-//   }
-  
-//   console.log("✅ Got authentication token, sending notification...");
-
-//   // Extract Azure AD Object ID from token instead of using local database ID
-//   let azureUserId;
-//   try {
-//     const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-//     azureUserId = tokenPayload.oid || tokenPayload.sub; // Object ID or Subject ID
-//     console.log("Using Azure AD User ID from token:", azureUserId);
-//   } catch (error) {
-//     console.error("Failed to parse token, falling back to local user ID");
-//     azureUserId = currentUser.id.toString();
-//   }
-
-//   const requestBody = {
-//     message: "Notification invoked",
-//     userId: azureUserId, // Use Azure AD Object ID, not local database ID
-//   };
-
-//   console.log("Request details:", {
-//     url: `${API_URL}/notification/send-test`,
-//     body: requestBody,
-//     hasToken: !!token,
-//     tokenSnippet: token ? `${token.substring(0, 20)}...` : 'none'
-//   });
-
-//   try {
-//     const response = await fetch(`${API_URL}/notification/send-test`, {
-//       method: "POST",
-//       headers: {
-//         "Content-Type": "application/json",
-//         Authorization: `Bearer ${token}`,
-//       },
-//       body: JSON.stringify(requestBody),
-//     });
-
-//     console.log("Response status:", response.status);
-
-//     if (!response.ok) {
-//       const errorText = await response.text();
-//       console.error("❌ Error response:", errorText);
-      
-//       if (response.status === 401) {
-//         throw new Error("Authentication failed. Your Azure AD token is not valid for this API. Please check your backend authentication configuration.");
-//       }
-      
-//       throw new Error(`Notification failed (${response.status}): ${errorText || 'Unknown error'}`);
-//     }
-
-//     const result = await response.json();
-//     console.log("✅ Notification sent successfully:", result);
-//     return result;
-//   } catch (error) {
-//     console.error("❌ Notification request failed:", error);
-//     throw error;
-//   }
-// }
 
 export async function sendTestNotification() {
   console.log("🔔 Starting notification test...");

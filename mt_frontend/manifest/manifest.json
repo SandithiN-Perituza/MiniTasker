@@ -17,7 +17,7 @@
     "color": "color.png"
   },
   "developer": {
-    "name": "Sandithi Nethsiluni",
+    "name": "Kasundi Senanayake",
     "websiteUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
     "privacyUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/privacy",
     "termsOfUseUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/terms"
@@ -38,7 +38,7 @@
   ],
   "accentColor": "#FFFFFF",
   "webApplicationInfo": {
-    "id": "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
-    "resource": "api://f6c2a5e9-3bd5-4223-ad2c-618846a668c5"
+    "id": "59aef810-e681-4b84-bc17-2561fe854c0e",
+    "resource": "api://59aef810-e681-4b84-bc17-2561fe854c0e"
   }
 }

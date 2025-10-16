@@ -15,7 +15,7 @@ export const msalConfig = {
 };
 
 export const apiRequest = {
-  scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/accessas_user"],
+  scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"], // ✅ correct format
 };
 
 // NEW: Graph scopes for profile retrieval
