@@ -1,10 +1,11 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.Tokens;
 using mt_backend.Data;
 using mt_backend.Services;
 using mt_backend.Services.Interfaces;
 using MySql.EntityFrameworkCore.Extensions;
-using Microsoft.Identity.Web;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,7 +22,34 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.WriteIndented = true;
     });
 
-builder.Services.AddEndpointsApiExplorer();
+//builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+//    .AddJwtBearer(options =>
+//    {
+//        options.Authority = "https://login.microsoftonline.com/YOURTENANTID";
+//        options.Audience = "api://59aef810-e681-4b84-bc17-2561fe854c0e";
+//        options.TokenValidationParameters = new TokenValidationParameters
+//        {
+//            ValidateIssuer = true
+//        };
+//    });
+
+//builder.Services.AddAuthorization();
+
+//builder.Services.AddEndpointsApiExplorer();
+
+builder.Services.AddAuthentication("Bearer")
+    .AddJwtBearer(o =>
+    {
+        o.Authority = "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82/v2.0";
+        o.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidAudience = "api://59aef810-e681-4b84-bc17-2561fe854c0e",
+            ValidateAudience = true,
+            ValidateIssuer = true,
+            ValidateLifetime = true
+        };
+    });
+builder.Services.AddAuthorization();
 
 // Register your services
 builder.Services.AddScoped<IUserService, UserService>();
@@ -51,11 +79,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseAuthentication();
+app.UseAuthorization();
+
 app.UseCors("AllowFrontend");
 app.UseHttpsRedirection();
 
 app.MapControllers();
-app.MapGet("/", () => "MiniTasker API is running! --- Sandihi's version - feature-microsoft-login ---");
+app.MapGet("/", () => "MiniTasker API is running! --- Sandithi's version - feature-microsoft-login ---");
 
 app.Run();
 
