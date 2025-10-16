@@ -1,53 +1,23 @@
 import React, { useContext } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { msalInstance } from "../utils/msalConfig";
+// import { msalInstance } from "../utils/msalConfig";
 import UserContext from "../context/UserContext";
 import { IoMenu } from "react-icons/io5";
-import * as microsoftTeams from "@microsoft/teams-js";
+// import * as microsoftTeams from "@microsoft/teams-js";
+import { isInTeams } from "../utils/teams";
+import MicrosoftLoginButton from "./MicrosoftLoginButton";
 
 export default function Sidebar({ open, onClose }) {
   const navigate = useNavigate();
-  const { user, login, logout } = useContext(UserContext);
+  const { user, logout } = useContext(UserContext);
 
   function handleLogout() {
-    logout(); // Use context logout instead of utils/auth logout
+    logout();
     onClose();
     navigate("/login");
   }
 
-  async function handleMicrosoftLogin() {
-    // Fallback ONLY when not inside Teams (SSO handled automatically there)
-    try {
-      const inTeams = !!(await microsoftTeams.app.initialize()
-        .then(() => true)
-        .catch(() => false));
-      if (inTeams) return; // SSO already handled by TeamsAuth
-      const loginResponse = await msalInstance.loginPopup({
-        scopes: ["user.read"],
-      });
-      const idToken = loginResponse.idToken;
-
-      // Send token to backend for validation
-      const res = await fetch(
-        "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net/api/auth/microsoft",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-        }
-      );
-
-      const userData = await res.json();
-      login(userData); // Use context login instead of localStorage
-      onClose();
-      navigate("/");
-    } catch (err) {
-      console.error("Microsoft login failed", err);
-    }
-  }
-
+  // Removed Microsoft login fallback
   return (
     <div
       className={`fixed inset-0 z-20 transition-all ${
@@ -74,8 +44,18 @@ export default function Sidebar({ open, onClose }) {
           <IoMenu size={24} />
         </button>
         <nav className="flex flex-col gap-2 p-4">
-          {!user && (
+          {!user && !isInTeams() && (
             <>
+              <MicrosoftLoginButton
+                onSuccess={() => {
+                  onClose();
+                  navigate("/");
+                }}
+                onError={(e) => {
+                  console.error("Microsoft login failed", e);
+                }}
+              />
+              <div className="text-xs text-gray-400 text-center">or</div>
               <Link
                 to="/login"
                 className="py-2 px-4 rounded hover:bg-blue-100"
@@ -90,13 +70,6 @@ export default function Sidebar({ open, onClose }) {
               >
                 Signup
               </Link>
-              {/* Fallback button only visible outside Teams */}
-              <button
-                className="py-2 px-4 rounded hover:bg-blue-100 text-left"
-                onClick={handleMicrosoftLogin}
-              >
-                Sign in with Microsoft
-              </button>
             </>
           )}
           {user && (

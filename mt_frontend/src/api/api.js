@@ -86,6 +86,24 @@ export async function loginUser(email, password) {
   return res.json();
 }
 
+// NEW / UPDATED: Microsoft authentication (replaces upsertMicrosoftUser)
+export async function microsoftAuth(token) {
+  const res = await fetch(`${API_URL}/auth/microsoft`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (res.status === 404) {
+    throw new Error("404: /auth/microsoft endpoint not found.");
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Microsoft auth failed (status ${res.status}) ${text}`);
+  }
+  return res.json();
+}
+
 // Comments
 // Fetch comments for a task
 export async function fetchComments(taskId) {

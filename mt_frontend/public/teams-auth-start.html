@@ -23,9 +23,12 @@
           authority: "https://login.microsoftonline.com/common",
           redirectUri: window.location.origin + "/teams-auth-start.html"
         },
-        cache: { cacheLocation: "sessionStorage" }
+        cache: { cacheLocation: "sessionStorage" },
+        // NEW: needed for embedded webview redirects
+        system: { allowRedirectInIframe: true }
       };
       const msalInstance = new msal.PublicClientApplication(msalConfig);
+      await msalInstance.initialize(); // NEW: ensure initialized
 
       function update(msg) {
         const el = document.getElementById("status");

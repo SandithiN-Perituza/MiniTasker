@@ -1,6 +1,7 @@
 import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import UserContext from "../context/UserContext";
+import { isInTeams } from "../utils/teams";
 
 export default function Login() {
   const { login } = useContext(UserContext);
@@ -27,6 +28,17 @@ export default function Login() {
     }
   }
 
+  if (isInTeams()) {
+    return (
+      <div className="max-w-sm mx-auto mt-16 bg-white p-6 rounded shadow">
+        <h2 className="text-xl font-bold mb-2">Login</h2>
+        <p className="text-sm text-gray-600">
+          Signing you in with your Microsoft Teams account...
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-sm mx-auto mt-16 bg-white p-6 rounded shadow">
       <h2 className="text-xl font-bold mb-4">Login</h2>
@@ -49,7 +61,10 @@ export default function Login() {
           required
         />
         {error && <div className="text-red-500">{error}</div>}
-        <button className="bg-blue-600 text-white px-4 py-2 rounded w-full" type="submit">
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded w-full"
+          type="submit"
+        >
           Login
         </button>
       </form>

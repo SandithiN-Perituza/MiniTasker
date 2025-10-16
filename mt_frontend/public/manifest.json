@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "version": "1.0.0",
-  "id": "3ee5758e-f933-4383-ba25-8c5f0fb848a4", 
+  "id": "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
   "packageName": "com.minitasker.app",
   "name": {
     "short": "MiniTasker",
@@ -22,10 +22,6 @@
     "privacyUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/privacy",
     "termsOfUseUrl": "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/terms"
   },
-  "webApplicationInfo": {
-    "id": "3ee5758e-f933-4383-ba25-8c5f0fb848a4",
-    "resource": "api://3ee5758e-f933-4383-ba25-8c5f0fb848a4"
-  },
   "staticTabs": [
     {
       "entityId": "minitasker",
@@ -35,9 +31,14 @@
       "scopes": ["personal"]
     }
   ],
-  "permissions": ["identity", "messageTeamMembers"],
+  "permissions": [],
   "validDomains": [
-    "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net"
+    "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
+    "app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net"
   ],
-  "accentColor": "#FFFFFF"
+  "accentColor": "#FFFFFF",
+  "webApplicationInfo": {
+    "id": "59aef810-e681-4b84-bc17-2561fe854c0e",
+    "resource": "api://59aef810-e681-4b84-bc17-2561fe854c0e"
+  }
 }
