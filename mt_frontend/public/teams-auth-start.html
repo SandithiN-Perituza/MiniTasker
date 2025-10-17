@@ -16,7 +16,8 @@
   <div id="status">Initializing Microsoft Teams authentication...</div>
   <script>
     (async function() {
-      const clientId = "3ee5758e-f933-4383-ba25-8c5f0fb848a4"; // keep synced with AAD app
+  // NOTE: keep this clientId in sync with src/authConfig.js (msalConfig.auth.clientId)
+  const clientId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // synced with authConfig.js
       const msalConfig = {
         auth: {
           clientId,

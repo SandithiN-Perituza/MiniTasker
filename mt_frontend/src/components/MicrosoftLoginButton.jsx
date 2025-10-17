@@ -18,7 +18,7 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
     }
   }
 
-  if (isInTeams()) return null;
+  const inTeams = isInTeams();
 
   return (
     <button
@@ -27,7 +27,11 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
       disabled={loading}
       className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded px-4 py-2 hover:bg-gray-50 disabled:opacity-50"
     >
-      {loading ? "Signing in..." : "Sign in with Microsoft"}
+      {loading
+        ? "Signing in..."
+        : inTeams
+        ? "Sign in with Microsoft (Teams)"
+        : "Sign in with Microsoft"}
     </button>
   );
 }
