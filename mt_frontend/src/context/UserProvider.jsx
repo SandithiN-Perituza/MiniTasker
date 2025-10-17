@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import UserContext from "./UserContext";
 import { msalInstance, graphScopes, ensureMsalInitialized } from "../authConfig";
 import { microsoftAuth } from "../api/api";
-import * as microsoftTeams from "@microsoft/teams-js";
-import { isInTeams } from "../utils/teams";
 
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -42,38 +40,7 @@ export function UserProvider({ children }) {
 
   const loginWithMicrosoft = async () => {
     try {
-      // TEAMS FLOW
-      if (isInTeams()) {
-        await microsoftTeams.app.initialize();
-
-        // NEW: first attempt silent SSO inside Teams (avoids popup issues)
-        try {
-            const ssoToken = await microsoftTeams.authentication.getAuthToken({ silent: true });
-            const saved = await microsoftAuth(ssoToken);
-            localStorage.setItem("user", JSON.stringify(saved));
-            setUser(saved);
-            return saved;
-        } catch {
-            // silent SSO failed -> fall back to interactive authenticate URL
-        }
-
-        // Fallback interactive (custom page)
-        const idToken = await new Promise((resolve, reject) => {
-          microsoftTeams.authentication.authenticate({
-            url: `${window.location.origin}/teams-auth-start.html`,
-            width: 600,
-            height: 560,
-            successCallback: (result) => resolve(result),
-            failureCallback: (reason) => reject(new Error(reason)),
-          });
-        });
-        const saved = await microsoftAuth(idToken);
-        localStorage.setItem("user", JSON.stringify(saved));
-        setUser(saved);
-        return saved;
-      }
-
-      // BROWSER FLOW
+      // Always use browser MSAL flow, even inside Teams
       await ensureMsalInitialized();
       let account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
       if (!account) {
@@ -112,14 +79,6 @@ export function UserProvider({ children }) {
       throw e;
     }
   };
-
-  const autoLoginAttempted = useRef(false);
-  useEffect(() => {
-    if (!user && isInTeams() && !autoLoginAttempted.current) {
-      autoLoginAttempted.current = true;
-      loginWithMicrosoft().catch(e => console.warn("Auto Teams SSO failed:", e));
-    }
-  }, [user]);
 
   return (
     <UserContext.Provider value={{ user, login, logout, loginWithMicrosoft }}>
