@@ -299,7 +299,20 @@ namespace mt_backend.Controllers
                     });
                 }
 
-                // Extract user ID from token claims
+                // Extract user ID from token claims BEFORE validation transforms them
+                var tokenHandler = new JwtSecurityTokenHandler();
+                var rawJwtToken = tokenHandler.ReadJwtToken(token);
+                
+                // Get the raw Azure AD Object ID from the original JWT token
+                var rawAzureAdId = rawJwtToken.Claims.FirstOrDefault(c => c.Type == "oid")?.Value;
+                
+                await _errorLogger.LogAsync(
+                    "Raw JWT token claims inspection",
+                    $"Raw oid claim from JWT: {rawAzureAdId}, All claims: {string.Join(", ", rawJwtToken.Claims.Select(c => $"{c.Type}={c.Value}"))}",
+                    "NotificationController.SendTestNotification"
+                );
+
+                // Extract user ID from validated token claims (for comparison)
                 var currentUserId = principal.FindFirst("oid")?.Value ??
                                  principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
                                  principal.FindFirst("sub")?.Value;
@@ -312,13 +325,16 @@ namespace mt_backend.Controllers
                              principal.FindFirst(ClaimTypes.Name)?.Value ??
                              "Unknown User";
 
+                // Use the raw Azure AD Object ID for Microsoft Graph API calls
+                var azureAdObjectId = rawAzureAdId ?? currentUserId;
+
                 await _errorLogger.LogAsync(
-                    "User ID extraction details",
-                    $"oid claim: {principal.FindFirst("oid")?.Value}, sub claim: {principal.FindFirst("sub")?.Value}, nameidentifier: {principal.FindFirst(ClaimTypes.NameIdentifier)?.Value}, final userId: {currentUserId}",
+                    $"Authenticated user: {userName} ({userEmail})",
+                    $"Raw Azure AD Object ID: {azureAdObjectId}, Processed User ID: {currentUserId}",
                     "NotificationController.SendTestNotification"
                 );
 
-                if (string.IsNullOrEmpty(currentUserId))
+                if (string.IsNullOrEmpty(azureAdObjectId))
                 {
                     await _errorLogger.LogAsync(
                         "User ID not found in token claims",
@@ -328,28 +344,22 @@ namespace mt_backend.Controllers
                     return Unauthorized(new { message = "User ID not found in token" });
                 }
 
-                await _errorLogger.LogAsync(
-                    $"Authenticated user: {userName} ({userEmail})",
-                    $"User ID: {currentUserId}",
-                    "NotificationController.SendTestNotification"
-                );
-
-                // Try to get user from your database (optional)
-                var dbUser = await _userService.GetUserByAzureAdIdAsync(currentUserId);
+                // Try to get user from your database (use the raw Azure AD ID for lookup)
+                var dbUser = await _userService.GetUserByAzureAdIdAsync(azureAdObjectId);
                 var displayName = dbUser?.Name ?? userName;
 
                 try
                 {
-                    // Send the notification
+                    // Send the notification using the correct Azure AD Object ID
                     var message = "Notification invoked! This is a test notification triggered by button click.";
 
                     await _errorLogger.LogAsync(
-                        "Calling notification service",
-                        $"About to send notification to user {currentUserId}",
+                        "Calling notification service - will send from logged-in user to Sandithi",
+                        $"Sender (logged-in user): {azureAdObjectId}, Will lookup recipient: sandithin@perituza.com",
                         "NotificationController.SendTestNotification"
                     );
                     try { 
-                        await _notificationService.SendNotificationAsync(currentUserId, message);
+                        await _notificationService.SendNotificationAsync(azureAdObjectId, message);
                     }
                     catch(Exception ex)
                     {
@@ -362,7 +372,7 @@ namespace mt_backend.Controllers
                     }
 
                     await _errorLogger.LogAsync(
-                        $"Test notification sent successfully to user {currentUserId}",
+                        $"Test notification sent successfully to Azure AD Object ID {azureAdObjectId}",
                         $"User: {displayName}, Message: {message}",
                         "NotificationController.SendTestNotification"
                     );
@@ -370,7 +380,7 @@ namespace mt_backend.Controllers
                 catch (Exception notifyEx)
                 {
                     await _errorLogger.LogAsync(
-                        $"Error sending notification to user {currentUserId}: {notifyEx.Message}",
+                        $"Error sending notification to user {azureAdObjectId}: {notifyEx.Message}",
                         notifyEx.StackTrace ?? "No stack trace",
                         "NotificationController.SendTestNotification"
                     );
@@ -387,7 +397,8 @@ namespace mt_backend.Controllers
                 {
                     success = true,
                     message = "Test notification sent successfully!",
-                    userId = currentUserId,
+                    userId = currentUserId, // Keep this for compatibility with frontend
+                    azureAdObjectId = azureAdObjectId, // Add the correct ID for debugging
                     userName = displayName,
                     userEmail = userEmail,
                     timestamp = DateTime.UtcNow
