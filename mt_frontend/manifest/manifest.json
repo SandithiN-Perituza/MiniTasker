@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "id": "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
   "packageName": "com.minitasker.app",
   "name": {
@@ -31,7 +31,10 @@
       "scopes": ["personal"]
     }
   ],
-  "permissions": [],
+  "permissions": [
+    "identity",
+    "messageTeamMembers"
+  ],
   "validDomains": [
     "app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net",
     "app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net"
@@ -40,5 +43,14 @@
   "webApplicationInfo": {
     "id": "59aef810-e681-4b84-bc17-2561fe854c0e",
     "resource": "api://59aef810-e681-4b84-bc17-2561fe854c0e"
+  },
+  "activities": {
+    "activityTypes": [
+      {
+        "type": "userMention",
+        "description": "Mentioned in a task",
+        "templateText": "You were mentioned in a task."
+      }
+    ]
   }
 }
