@@ -1,16 +1,16 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "id": "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
-  "packageName": "com.minitasker.app",
+  "packageName": "com.minitasker.app.test",
   "name": {
-    "short": "MiniTasker",
-    "full": "MiniTasker Workload Manager"
+    "short": "MiniTasker Test",
+    "full": "MiniTasker Workload Manager (Test)"
   },
   "description": {
-    "short": "Manage tasks inside Teams",
-    "full": "A simplified workload management app for Teams"
+    "short": "Manage tasks inside Teams (Test Version)",
+    "full": "A simplified workload management app for Teams (Test/Personal Version)"
   },
   "icons": {
     "outline": "outline.png",

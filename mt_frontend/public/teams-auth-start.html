@@ -16,19 +16,20 @@
   <div id="status">Initializing Microsoft Teams authentication...</div>
   <script>
     (async function() {
-      const clientId = "3ee5758e-f933-4383-ba25-8c5f0fb848a4"; // keep synced with AAD app
+      // IMPORTANT: Use the SAME SPA clientId as in authConfig.js to avoid tenant / consent mismatch.
+      const clientId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // SPA Frontend App Registration
+      const authority = "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82"; // tenant-specific for consistency
       const msalConfig = {
         auth: {
           clientId,
-          authority: "https://login.microsoftonline.com/common",
+          authority,
           redirectUri: window.location.origin + "/teams-auth-start.html"
         },
         cache: { cacheLocation: "sessionStorage" },
-        // NEW: needed for embedded webview redirects
         system: { allowRedirectInIframe: true }
       };
       const msalInstance = new msal.PublicClientApplication(msalConfig);
-      await msalInstance.initialize(); // NEW: ensure initialized
+      await msalInstance.initialize();
 
       function update(msg) {
         const el = document.getElementById("status");
@@ -36,31 +37,44 @@
         console.log("[TeamsAuthPopup]", msg);
       }
 
+      // Hard timeout so the parent window isn't left waiting forever
+      const failSafe = setTimeout(() => {
+        update("Timeout waiting for SSO – switching to interactive login...");
+      }, 6000);
+
       try {
         await microsoftTeams.app.initialize();
       } catch (e) {
+        clearTimeout(failSafe);
         return microsoftTeams.authentication.notifyFailure("Teams init failed: " + (e.message || e));
       }
 
-      // Try SSO first (avoid extra prompts if possible)
+      // Attempt Teams SSO first. In a popup opened via authentication.authenticate this may fail quickly.
+      let returned = false;
       try {
         const ssoToken = await microsoftTeams.authentication.getAuthToken({ silent: true });
-        update("Obtained SSO token.");
+        clearTimeout(failSafe);
+        update("Obtained Teams SSO token.");
+        returned = true;
         return microsoftTeams.authentication.notifySuccess(ssoToken);
-      } catch {
-        update("Standard SSO path failed, proceeding with MSAL interactive login...");
+      } catch (ssoErr) {
+        update("Silent Teams SSO not available (" + (ssoErr?.message || ssoErr) + ") – using MSAL interactive...");
       }
 
+      // Interactive MSAL login as fallback
       try {
-        const loginResponse = await msalInstance.loginPopup({
-          scopes: ["User.Read"],
+        const resp = await msalInstance.loginPopup({
+          scopes: ["openid", "profile", "offline_access", "User.Read"],
           prompt: "select_account"
         });
-        update("Interactive login complete. Returning id token.");
-        // Prefer idToken for backend mapping if that's what your API expects
-        return microsoftTeams.authentication.notifySuccess(loginResponse.idToken);
+        clearTimeout(failSafe);
+        if (!returned) {
+          update("Login complete.");
+          return microsoftTeams.authentication.notifySuccess(resp.idToken);
+        }
       } catch (e) {
-        console.error(e);
+        clearTimeout(failSafe);
+        console.error("Interactive login failed", e);
         return microsoftTeams.authentication.notifyFailure("Interactive login failed: " + (e.message || e));
       }
     })();

@@ -104,6 +104,22 @@ export async function microsoftAuth(token) {
   return res.json();
 }
 
+// OBO: Exchange a Teams / AAD user token for downstream API access token
+export async function exchangeObo(userAssertion) {
+  const res = await fetch(`${API_URL}/auth/obo`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${userAssertion}`,
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`OBO exchange failed (${res.status}) ${text}`);
+  }
+  // Expected shape: { accessToken: "<api-token>", expiresOn?: "...", tokenType?: "Bearer" }
+  return res.json();
+}
+
 // Comments
 // Fetch comments for a task
 export async function fetchComments(taskId) {

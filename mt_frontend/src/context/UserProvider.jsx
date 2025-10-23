@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import UserContext from "./UserContext";
 import { msalInstance, graphScopes, ensureMsalInitialized } from "../authConfig";
-import { microsoftAuth } from "../api/api";
+import { microsoftAuth, exchangeObo } from "../api/api";
 import * as microsoftTeams from "@microsoft/teams-js";
 import { isInTeams } from "../utils/teams";
 import { ensureTeamsInitialized } from "../utils/teamsInit";
@@ -43,22 +43,29 @@ export function UserProvider({ children }) {
 
   const loginWithMicrosoft = async () => {
     try {
-      // TEAMS FLOW
+  // TEAMS FLOW (uses teams-auth-start.html which now shares the same SPA clientId)
       if (isInTeams()) {
         await ensureTeamsInitialized(); // centralized init
 
-        // NEW: first attempt silent SSO inside Teams (avoids popup issues)
+        // Try silent SSO inside Teams (avoids popup issues)
         try {
           const ssoToken = await microsoftTeams.authentication.getAuthToken({ silent: true });
           const saved = await microsoftAuth(ssoToken);
           localStorage.setItem("user", JSON.stringify(saved));
+          // NEW: OBO exchange for API token
+            try {
+              const obo = await exchangeObo(ssoToken);
+              localStorage.setItem("accessToken", obo.accessToken);
+            } catch (oboErr) {
+              console.warn("Silent Teams OBO failed:", oboErr);
+            }
           setUser(saved);
           return saved;
         } catch {
           // silent SSO failed -> fall back
         }
 
-        // Fallback interactive (custom page)
+  // Fallback: interactive popup via Teams authentication.authenticate (will load teams-auth-start.html)
         const idToken = await new Promise((resolve, reject) => {
           microsoftTeams.authentication.authenticate({
             url: `${window.location.origin}/teams-auth-start.html`,
@@ -70,6 +77,13 @@ export function UserProvider({ children }) {
         });
         const saved = await microsoftAuth(idToken);
         localStorage.setItem("user", JSON.stringify(saved));
+        // NEW: OBO exchange after interactive
+        try {
+          const obo = await exchangeObo(idToken);
+          localStorage.setItem("accessToken", obo.accessToken);
+        } catch (oboErr) {
+          console.warn("Interactive Teams OBO failed:", oboErr);
+        }
         setUser(saved);
         return saved;
       }
@@ -79,6 +93,7 @@ export function UserProvider({ children }) {
       let account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
       if (!account) {
         try {
+          // Use loginPopup for first login (not silent)
           const popupResp = await msalInstance.loginPopup({ scopes: graphScopes, prompt: "select_account" });
           account = popupResp.account;
           msalInstance.setActiveAccount(account);
@@ -87,21 +102,22 @@ export function UserProvider({ children }) {
           if (idTok) {
             const saved = await microsoftAuth(idTok);
             localStorage.setItem("user", JSON.stringify(saved));
-            setUser(saved);
-            return saved;
+            // continue to get API token below
           }
         } catch (popupErr) {
-          // Fallback to redirect (flow continues after redirect)
+          console.warn("MSAL popup login failed:", popupErr);
+          // Fallback to redirect (opens in full browser window)
           await msalInstance.loginRedirect({ scopes: graphScopes, prompt: "select_account" });
           return;
         }
       }
 
-      // Acquire token silently (after having an account)
+      // Acquire API token silently (no OBO needed in plain browser)
       const tokenResp = await msalInstance.acquireTokenSilent({
-        scopes: graphScopes,
+        scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"],
         account: msalInstance.getActiveAccount(),
       });
+      localStorage.setItem("accessToken", tokenResp.accessToken); // NEW store API token
 
       const tokenForBackend = tokenResp.idToken || tokenResp.accessToken;
       const saved = await microsoftAuth(tokenForBackend);
