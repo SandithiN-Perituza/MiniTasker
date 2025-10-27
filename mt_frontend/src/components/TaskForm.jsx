@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { createTask, updateTask, fetchUsers } from "../api/api";
+import { createTask, createTaskWithNotification, updateTask, fetchUsers, getUserAzureAdId } from "../api/api";
 import { PiWarningCircleBold } from 'react-icons/pi';
 
 const statusOptions = [
@@ -14,16 +14,20 @@ export default function TaskForm({ onSuccess, task }) {
     description: "",
     status: 0,
     assignedTo: "",
+    dueDate: "",
   });
   const [users, setUsers] = useState([]);
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    fetchUsers().then(setUsers);
+    fetchUsers().then((fetchedUsers) => {
+      console.log("📋 Fetched users:", fetchedUsers);
+      setUsers(fetchedUsers);
+    });
   }, []);
 
   useEffect(() => {
-      if (task) {
+    if (task) {
       const statusMap = {
         Pending: 0,
         InProgress: 1,
@@ -74,31 +78,73 @@ export default function TaskForm({ onSuccess, task }) {
       setErrors(validationErrors);
       return;
     }
+    
     const payload = {
       ...form,
       assignedTo: form.assignedTo || null,
     };
-    if (task) {
-      await updateTask(task.id, { ...task, ...payload });
-    } else {
-      await createTask(payload);
+
+    try {
+      if (task) {
+        // For updates, use the original updateTask function
+        await updateTask(task.id, { ...task, ...payload });
+      } else {
+        // For new tasks, get the assigned user's Azure AD ID
+        const assignedUserId = parseInt(form.assignedTo);
+        
+        console.log("🔍 Getting Azure AD ID for assigned user:", assignedUserId);
+        
+        try {
+          // Call the new backend API to get Azure AD ID
+          const userDetails = await getUserAzureAdId(assignedUserId);
+          
+          console.log("✅ Got user details from backend:", userDetails);
+          
+          if (userDetails.hasAzureAdId && userDetails.azureAdId) {
+            console.log("🔔 Creating task with notification for user:", userDetails);
+            // Use createTaskWithNotification with the Azure AD ID
+            await createTaskWithNotification(payload, userDetails.azureAdId);
+          } else {
+            console.warn("⚠️ Assigned user has no Azure AD ID, creating task without notification");
+            alert(`Warning: ${userDetails.name} hasn't logged in via Microsoft yet, so they won't receive a Teams notification.`);
+            await createTask(payload);
+          }
+        } catch (azureIdError) {
+          console.error("❌ Failed to get Azure AD ID:", azureIdError);
+          console.warn("⚠️ Falling back to regular task creation");
+          alert("Could not retrieve user information for notifications. Creating task without notification.");
+          await createTask(payload);
+        }
+      }
+
+      onSuccess();
+      
+      // reset form
+      setForm({
+        title: "",
+        description: "",
+        status: 0,
+        assignedTo: "",
+        dueDate: "",
+      });
+      setErrors({});
+      
+    } catch (error) {
+      console.error("❌ Failed to create/update task:", error);
+      setErrors({ submit: error.message });
     }
-    onSuccess();
-    // reset form
-    setForm({
-      title: "",
-      description: "",
-      status: 0,
-      assignedTo: "",
-      dueDate: "",
-    });
-    setErrors({});
   }
 
   const isOverdue = form.dueDate && new Date(form.dueDate) < new Date() && form.status !== 2;
 
   return (
     <form className="space-y-4 p-4 bg-white rounded shadow" onSubmit={handleSubmit} noValidate>
+      {errors.submit && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {errors.submit}
+        </div>
+      )}
+      
       <div>
         <label className="block mb-1 font-medium" htmlFor="title">
           Title
@@ -118,6 +164,7 @@ export default function TaskForm({ onSuccess, task }) {
           <p className="text-red-500 text-sm mt-1">{errors.title}</p>
         )}
       </div>
+      
       <div>
         <label className="block mb-1 font-medium" htmlFor="description">
           Description
@@ -138,6 +185,7 @@ export default function TaskForm({ onSuccess, task }) {
           </p>
         )}
       </div>
+      
       <div>
         <label className="block mb-1 font-medium" htmlFor="status">
           Status
@@ -156,6 +204,7 @@ export default function TaskForm({ onSuccess, task }) {
           ))}
         </select>
       </div>
+      
       <div>
         <label className="block mb-1 font-medium" htmlFor="assignedTo">
           Assign To
@@ -182,6 +231,7 @@ export default function TaskForm({ onSuccess, task }) {
           </p>
         )}
       </div>
+      
       <div>
         <label className="block mb-1 font-medium" htmlFor="dueDate">
           Due Date

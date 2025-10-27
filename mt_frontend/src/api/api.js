@@ -263,14 +263,244 @@ export async function fetchUserTasks() {
   return await response.json();
 }
 
+export async function getGraphToken() {
+  console.log("🔍 Acquiring Microsoft Graph token...");
+  
+  try {
+    await ensureMsalInitialized();
+    
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length === 0) {
+      throw new Error("No Microsoft accounts found. Please log in first.");
+    }
+    
+    const account = accounts[0];
+    
+    // ✅ Request token specifically for Microsoft Graph
+    const tokenRequest = {
+      scopes: [
+        "https://graph.microsoft.com/User.Read",
+        "https://graph.microsoft.com/TeamsActivity.Send",
+        
+      ],
+      account: account,
+      forceRefresh: false
+    };
+    // ,
+    // "https://graph.microsoft.com/User.Read.All"
+    console.log("📝 Graph token request:", tokenRequest);
+    
+    try {
+      const response = await msalInstance.acquireTokenSilent(tokenRequest);
+      console.log("✅ Successfully acquired Microsoft Graph token (silent)");
+      return response.accessToken;
+    } catch (silentError) {
+      console.log("Silent token acquisition failed, trying popup...", silentError);
+      
+      const response = await msalInstance.acquireTokenPopup(tokenRequest);
+      console.log("✅ Successfully acquired Microsoft Graph token (popup)");
+      return response.accessToken;
+    }
+    
+  } catch (error) {
+    console.error("❌ Failed to get Microsoft Graph token:", error);
+    throw new Error(`Graph token acquisition failed: ${error.message}`);
+  }
+}
+
 // Create a new task
+// api/taskApi.js or wherever your createTask function is
 export async function createTask(task) {
-  const res = await fetch(`${API_URL}/tasks`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(task),
+  console.log("🚀 Creating task with notification support...");
+
+  let backendToken;
+  
+  try {
+    backendToken = await getAuthToken();
+    console.log("✅ Authentication token acquired for task creation");
+  } catch (tokenError) {
+    console.error("❌ Token acquisition failed:", tokenError);
+    throw new Error("Could not acquire authentication token. Please try logging in with Microsoft account first.");
+  }
+
+    // Get Microsoft Graph token for notifications
+  let graphToken;
+  try {
+    graphToken = await getGraphToken();
+    console.log("✅ Microsoft Graph token acquired");
+  } catch (graphError) {
+    console.warn("⚠️ Graph token acquisition failed:", graphError);
+    // Continue without graph token - backend will handle fallback
+  }
+
+  let azureUserId, userEmail, userName;
+  try {
+    const tokenPayload = JSON.parse(atob(backendToken.split('.')[1]));
+    azureUserId = tokenPayload.oid || tokenPayload.sub;
+    userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
+    userName = tokenPayload.name;
+    
+    console.log("📋 User info extracted from token:", {
+      azureUserId,
+      userEmail,
+      userName
+    });
+  } catch (error) {
+    console.error("Failed to parse token:", error);
+    throw new Error("Invalid token format");
+  }
+
+  // Create the request body with notification data
+  const requestBody = {
+    message: "Test notification from MiniTasker - Task Assignment",
+    userId: azureUserId,
+    userEmail: userEmail,
+    userName: userName,
+    timestamp: new Date().toISOString(),
+    graphToken: graphToken,
+    task: {
+      title: task.title,
+      description: task.description,
+      assignedTo: task.assignedTo,
+      dueDate: task.dueDate
+    }
+  };
+
+  console.log("📤 Sending task creation request:", {
+    url: `${API_URL}/tasks`,
+    taskData: requestBody.task,
+    userInfo: {
+      userId: requestBody.userId,
+      userName: requestBody.userName
+    }
   });
-  return res.json();
+
+  try {
+    const response = await fetch(`${API_URL}/tasks`, {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${backendToken}` // ✅ Send the actual token
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Task creation failed:", response.status, errorText);
+      throw new Error(`Task creation failed: ${response.status} - ${errorText}`);
+    }
+
+    const result = await response.json();
+    console.log("✅ Task created successfully:", result);
+    
+    if (result.notificationSent) {
+      console.log("🔔 Notification sent to assigned user!");
+    } else {
+      console.log("⚠️ Task created but notification failed");
+    }
+
+    return result;
+  } catch (fetchError) {
+    console.error("❌ Task creation request failed:", fetchError);
+    throw fetchError;
+  }
+}
+
+// Add this to your api.js file:
+
+export async function getUserAzureAdId(userId) {
+  console.log(`🔍 Getting Azure AD ID for user ${userId}...`);
+  
+  const response = await fetch(`${API_URL}/users/${userId}/azuread-id`);
+  
+  if (!response.ok) {
+    console.error(`❌ Failed to get user Azure AD ID: ${response.status}`);
+    throw new Error(`Failed to get user Azure AD ID: ${response.status}`);
+  }
+  
+  const result = await response.json();
+  console.log(`📋 User Azure AD ID result:`, result);
+  
+  return result;
+}
+
+// In your task creation function
+export async function createTaskWithNotification(taskData, assignedUserAzureAdId) {
+  console.log("🔔 Creating task with notification...");
+  console.log("📋 Task data:", taskData);
+  console.log("👤 Assigned user Azure AD ID:", assignedUserAzureAdId);
+
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
+    throw new Error("Please log in to create tasks");
+  }
+
+  let token;
+  try {
+    token = await getAuthToken();
+  } catch (tokenError) {
+    console.error("❌ Token acquisition failed:", tokenError);
+    throw new Error("Could not acquire authentication token");
+  }
+
+  let graphT;
+  try {
+    graphT = await getGraphToken();
+  } catch (graphError) {
+    console.warn("⚠️ Graph token acquisition failed:", graphError);
+    // Continue without graph token - backend will handle fallback
+  }
+
+  // Extract user information from token (same as button)
+  let azureUserId, userEmail, userName;
+
+  try {
+    const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+    azureUserId = tokenPayload.oid || tokenPayload.sub;
+    userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
+    userName = tokenPayload.name;
+  } catch (error) {
+    console.error("Failed to parse token:", error);
+    azureUserId = currentUser.id?.toString();
+    userEmail = currentUser.email;
+    userName = currentUser.name;
+  }
+
+  // ✅ Enhanced request body with assigned user's Azure AD ID
+  const requestBody = {
+    task: {
+      title: taskData.title,
+      description: taskData.description,
+      assignedTo: parseInt(taskData.assignedTo), // ✅ Convert to integer
+      dueDate: taskData.dueDate
+    },
+    message: `You have been assigned a new task: '${taskData.title}'`,
+    userId: azureUserId,           // Creator's Azure AD ID
+    userEmail: userEmail,
+    userName: userName,
+    assignedUserAzureAdId: assignedUserAzureAdId, //Assigned user's Azure AD ID
+    authToken: token,           // Backend auth token
+    graphToken: graphT,         // Access token for Graph API
+    timestamp: new Date().toISOString()
+  };
+
+  console.log("🔍 Full request body:", JSON.stringify(requestBody, null, 2));
+
+  const response = await fetch(`${API_URL}/tasks`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Task creation failed: ${response.status}`);
+  }
+
+  return await response.json();
 }
 
 // Update an existing task
@@ -278,7 +508,7 @@ export async function updateTask(id, task) {
   await fetch(`${API_URL}/tasks/${id}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(task),
+    body: JSON.stringify(task)
   });
 }
 
