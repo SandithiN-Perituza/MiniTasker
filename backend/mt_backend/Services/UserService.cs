@@ -70,6 +70,15 @@ namespace mt_backend.Services
 
             return user.AzureAdId;
         }
+
+        // Add this method to your UserService class:
+
+        public async Task<User> UpdateUserAsync(User user)
+        {
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync();
+            return user;
+        }
     }
 
 }

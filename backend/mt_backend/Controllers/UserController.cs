@@ -88,5 +88,35 @@ namespace mt_backend.Controllers
 
             return Ok(response);
         }
+
+        [HttpGet("{userId}/azuread-id")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetUserAzureAdId(int userId)
+        {
+            try
+            {
+                var user = await _userService.GetUserByIdAsync(userId);
+
+                if (user == null)
+                {
+                    return NotFound(new { error = "User not found" });
+                }
+
+                return Ok(new
+                {
+                    userId = user.Id,
+                    name = user.Name,
+                    email = user.Email,
+                    azureAdId = user.AzureAdId,
+                    hasAzureAdId = !string.IsNullOrEmpty(user.AzureAdId)
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
     }
+
+
 }

@@ -12,4 +12,5 @@ public interface IUserService
     Task<User?> GetUserByIdAsync(int id);
 
     Task<string> ResolveAzureUserId(int internalUserId);
+    Task<User> UpdateUserAsync(User user);
 }
