@@ -1,0 +1,61 @@
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { signup } from "../utils/auth";
+
+export default function Signup() {
+  const [form, setForm] = useState({ username: "", email:"", password: "" });
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  function handleChange(e) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    console.log("Form submitted:", form);
+    const success = await signup(form.username, form.email, form.password);
+    if (success) {
+      navigate("/login");
+    } else {
+      setError("Signup failed");
+    }
+  }
+
+  return (
+    <div className="max-w-sm mx-auto mt-16 bg-white p-6 rounded shadow">
+      <h2 className="text-xl font-bold mb-4">Signup</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          className="border p-2 w-full"
+          name="username"
+          placeholder="Username"
+          value={form.username}
+          onChange={handleChange}
+          required
+        />
+        <input
+          className="border p-2 w-full"
+          name="email"
+          placeholder="Email"
+          value={form.email}
+          onChange={handleChange}
+          required
+        />
+        <input
+          className="border p-2 w-full"
+          name="password"
+          type="password"
+          placeholder="Password"
+          value={form.password}
+          onChange={handleChange}
+          required
+        />
+        {error && <div className="text-red-500">{error}</div>}
+        <button className="bg-blue-600 text-white px-4 py-2 rounded w-full" type="submit">
+          Signup
+        </button>
+      </form>
+    </div>
+  );
+}
