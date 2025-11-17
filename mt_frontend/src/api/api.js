@@ -5,6 +5,7 @@ const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01
 
 import { msalInstance, ensureMsalInitialized } from "../authConfig";
 import { getCurrentUser } from "../utils/auth";
+import * as microsoftTeams from "@microsoft/teams-js";
 
 // export async function getAuthToken() {
 //   try {
@@ -56,28 +57,102 @@ export async function getAuthToken() {
   console.log("Attempting to get authentication token...");
   
   try {
+    // First try Teams SSO (desktop & web clients)
+    try {
+      try { await microsoftTeams.app.initialize(); } catch(e){}
+
+      try {
+        const ssoToken = await microsoftTeams.authentication.getAuthToken({
+          silent: true,
+          resources: ["api://59aef810-e681-4b84-bc17-2561fe854c0e"]
+        });
+        console.log("✅ Acquired Teams SSO token (silent)");
+        try { localStorage.setItem('accessToken', ssoToken); } catch(e){}
+        return ssoToken;
+      } catch (teamsSilentError) {
+        console.log("Teams silent SSO failed, falling back to interactive Teams authenticate", teamsSilentError);
+        try {
+          const authResult = await new Promise((resolve, reject) => {
+            let resolved = false;
+            const timeoutMs = 12000; // 12s
+            let timeout = setTimeout(() => {
+              if (resolved) return;
+              const clientId = msalInstance.getConfiguration().auth.clientId;
+              const redirectUri = msalInstance.getConfiguration().auth.redirectUri || window.location.origin + '/teams-auth-start.html';
+              const scope = 'api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user';
+              const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&prompt=select_account`;
+              try {
+                if (microsoftTeams.executeDeepLink) {
+                  microsoftTeams.executeDeepLink(authorizeUrl);
+                } else {
+                  window.open(authorizeUrl, '_blank');
+                }
+              } catch (e) {
+                try { window.open(authorizeUrl, '_blank'); } catch {}
+              }
+              resolved = true;
+              reject(new Error('Teams authenticate timed out; opened external browser fallback'));
+            }, timeoutMs);
+
+            microsoftTeams.authentication.authenticate({
+              url: `${window.location.origin}/teams-auth-start.html`,
+              width: 600,
+              height: 535,
+              successCallback: (token) => {
+                if (resolved) return; resolved = true; clearTimeout(timeout); resolve(token);
+              },
+              failureCallback: (err) => {
+                if (resolved) return; resolved = true; clearTimeout(timeout);
+                // attempt to open external browser via DeepLink as fallback
+                try {
+                  const clientId = msalInstance.getConfiguration().auth.clientId;
+                  const redirectUri = msalInstance.getConfiguration().auth.redirectUri || window.location.origin + '/teams-auth-start.html';
+                  const scope = 'api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user';
+                  const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&prompt=select_account`;
+                  if (microsoftTeams.executeDeepLink) {
+                    microsoftTeams.executeDeepLink(authorizeUrl);
+                  } else {
+                    window.open(authorizeUrl, '_blank');
+                  }
+                } catch (e) { try { window.open(authorizeUrl, '_blank'); } catch {} }
+                reject(err || new Error('Teams authenticate failed'));
+              }
+            });
+          });
+          console.log("✅ Acquired Teams token via interactive authenticate");
+          try { localStorage.setItem('accessToken', authResult); } catch(e){}
+          return authResult;
+        } catch (interactiveErr) {
+          console.log("Interactive Teams authenticate failed, will fall back to MSAL", interactiveErr);
+        }
+      }
+    } catch (teamsErr) {
+      console.log("Not running inside Teams or Teams SDK not available:", teamsErr?.message || teamsErr);
+    }
+
+    // Fallback to MSAL flows for web scenarios
     // Ensure MSAL is initialized
     await ensureMsalInitialized();
-    
+
     const accounts = msalInstance.getAllAccounts();
-    console.log("Available accounts:", accounts.length);
-    
+    console.log("Available MSAL accounts:", accounts.length);
+
     if (accounts.length === 0) {
       throw new Error("No Microsoft accounts found. Please log in with Microsoft first.");
     }
-    
+
     const account = accounts[0];
     console.log("Using account for token:", account.username);
-    
+
     // Use the API scope instead of User.Read for backend authentication
     const tokenRequest = {
       scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"],
       account: account,
       forceRefresh: false
     };
-    
+
     console.log("Token request:", tokenRequest);
-    
+
     try {
       // Try silent token acquisition first
       const response = await msalInstance.acquireTokenSilent(tokenRequest);
@@ -91,7 +166,7 @@ export async function getAuthToken() {
         sub: tokenPayload.sub,
         upn: tokenPayload.upn || tokenPayload.preferred_username
       });
-      
+      try { localStorage.setItem('accessToken', response.accessToken); } catch(e){}
       return response.accessToken;
     } catch (silentError) {
       console.log("Silent token acquisition failed, trying popup...", silentError);
@@ -108,13 +183,21 @@ export async function getAuthToken() {
         sub: tokenPayload.sub,
         upn: tokenPayload.upn || tokenPayload.preferred_username
       });
-      
+      try { localStorage.setItem('accessToken', response.accessToken); } catch(e){}
       return response.accessToken;
     }
     
   } catch (error) {
     console.error("❌ Failed to get authentication token:", error);
-    throw new Error(`Token acquisition failed: ${error.message}`);
+      // Helpful debug: show the fallback authorize url for manual testing
+      try {
+        const clientId = msalInstance.getConfiguration().auth.clientId;
+        const redirectUri = msalInstance.getConfiguration().auth.redirectUri || window.location.origin + '/teams-auth-start.html';
+        const scope = 'api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user';
+        const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&prompt=select_account`;
+        console.log("Fallback authorize URL:", authorizeUrl);
+      } catch (e) {}
+      throw new Error(`Token acquisition failed: ${error.message}`);
   }
 }
 

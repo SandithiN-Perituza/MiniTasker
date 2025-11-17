@@ -16,8 +16,9 @@
   <div id="status">Initializing Microsoft Teams authentication...</div>
   <script>
     (async function() {
-  // NOTE: keep this clientId in sync with src/authConfig.js (msalConfig.auth.clientId)
-  const clientId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // synced with authConfig.js
+      // NOTE: keep this clientId in sync with src/authConfig.js (msalConfig.auth.clientId)
+      const clientId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // synced with authConfig.js
+
       const msalConfig = {
         auth: {
           clientId,
@@ -25,11 +26,11 @@
           redirectUri: window.location.origin + "/teams-auth-start.html"
         },
         cache: { cacheLocation: "sessionStorage" },
-        // NEW: needed for embedded webview redirects
         system: { allowRedirectInIframe: true }
       };
+
       const msalInstance = new msal.PublicClientApplication(msalConfig);
-      await msalInstance.initialize(); // NEW: ensure initialized
+      await msalInstance.initialize();
 
       function update(msg) {
         const el = document.getElementById("status");
@@ -43,23 +44,75 @@
         return microsoftTeams.authentication.notifyFailure("Teams init failed: " + (e.message || e));
       }
 
-      // Try SSO first (avoid extra prompts if possible)
+      // Try Teams SSO first (avoid extra prompts if possible)
       try {
-        const ssoToken = await microsoftTeams.authentication.getAuthToken({ silent: true });
+        const ssoToken = await microsoftTeams.authentication.getAuthToken({
+          silent: true,
+          // request token for the backend API resource
+          resources: ["api://59aef810-e681-4b84-bc17-2561fe854c0e"]
+        });
         update("Obtained SSO token.");
+        try { sessionStorage.setItem('accessToken', ssoToken); } catch(e){}
         return microsoftTeams.authentication.notifySuccess(ssoToken);
-      } catch {
+      } catch (e) {
         update("Standard SSO path failed, proceeding with MSAL interactive login...");
+        console.log("Teams SSO silent failed:", e);
       }
 
+      // Handle redirect responses (when using loginRedirect)
       try {
-        const loginResponse = await msalInstance.loginPopup({
-          scopes: ["User.Read"],
-          prompt: "select_account"
-        });
-        update("Interactive login complete. Returning id token.");
-        // Prefer idToken for backend mapping if that's what your API expects
-        return microsoftTeams.authentication.notifySuccess(loginResponse.idToken);
+        const redirectResp = await msalInstance.handleRedirectPromise();
+        if (redirectResp) {
+          try {
+            const tokenResp = await msalInstance.acquireTokenSilent({
+              scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"]
+            });
+            update("Interactive redirect login complete. Returning access token.");
+            try { sessionStorage.setItem('accessToken', tokenResp.accessToken); } catch(e){}
+            return microsoftTeams.authentication.notifySuccess(tokenResp.accessToken);
+          } catch (silentAfterRedirectErr) {
+            console.log("Silent token after redirect failed:", silentAfterRedirectErr);
+            return microsoftTeams.authentication.notifyFailure("Failed to acquire API token after redirect: " + (silentAfterRedirectErr.message || silentAfterRedirectErr));
+          }
+        }
+
+        // No redirect result yet: start redirect flow which will reload this popup and return here
+          // Start redirect flow which will reload this popup and return here.
+          // Add a timeout to detect when WebView2 blocks the flow and show a fallback.
+          const fallbackTimeoutMs = 45000; // 45s
+          let timeoutHandle = null;
+
+          // Show a visible hint while redirecting
+          update("Opening interactive sign-in. If the page stays blank, use the fallback button.");
+
+          // Kick off redirect
+          msalInstance.loginRedirect({
+            scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"],
+            prompt: "select_account"
+          }).catch(err => console.log("loginRedirect error (catch):", err));
+
+          // Show fallback after timeout
+          timeoutHandle = setTimeout(() => {
+            update("Sign-in appears blocked by the Teams client. Use the button below to open sign-in in your browser.");
+            const fallbackDiv = document.createElement('div');
+            fallbackDiv.style.marginTop = '1rem';
+            const btn = document.createElement('button');
+            btn.textContent = 'Open sign-in in browser';
+            btn.style.padding = '8px 12px';
+            btn.onclick = () => {
+              // Construct OAuth2 authorize URL as a fallback (implicit/hybrid style)
+              const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&scope=${encodeURIComponent('api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user')}&redirect_uri=${encodeURIComponent(window.location.origin + '/teams-auth-start.html')}&prompt=select_account`;
+              window.open(authorizeUrl, '_blank');
+            };
+            fallbackDiv.appendChild(btn);
+            document.body.appendChild(fallbackDiv);
+
+            // Also notify Teams parent of failure so main app can handle fallback
+            try { microsoftTeams.authentication.notifyFailure('Redirect flow timed out (possible Teams WebView blocking).'); } catch(e) { console.warn('notifyFailure failed', e); }
+          }, fallbackTimeoutMs);
+
+          // Note: execution will not reach here on first call because loginRedirect navigates away.
+          return;
       } catch (e) {
         console.error(e);
         return microsoftTeams.authentication.notifyFailure("Interactive login failed: " + (e.message || e));

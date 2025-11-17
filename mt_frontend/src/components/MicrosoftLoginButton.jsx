@@ -1,6 +1,7 @@
 import React, { useState, useContext } from "react";
 import UserContext from "../context/UserContext";
 import { isInTeams } from "../utils/teams";
+import { msalConfig, apiRequest } from "../authConfig";
 
 export default function MicrosoftLoginButton({ onSuccess, onError }) {
   const { loginWithMicrosoft } = useContext(UserContext);
@@ -13,6 +14,18 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
       onSuccess && onSuccess(u);
     } catch (e) {
       onError && onError(e);
+      // Friendly fallback: open system browser to Azure authorize URL
+      try {
+        const clientId = msalConfig.auth.clientId;
+        const redirectUri = msalConfig.auth.redirectUri || window.location.origin + "/teams-auth-start.html";
+        const scope = (apiRequest && apiRequest.scopes && apiRequest.scopes[0]) || "api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user";
+        const authorizeUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${encodeURIComponent(clientId)}&response_type=token&scope=${encodeURIComponent(scope)}&redirect_uri=${encodeURIComponent(redirectUri)}&prompt=select_account`;
+        // Open in new window (system browser from Teams desktop)
+        window.open(authorizeUrl, "_blank");
+        alert("Sign-in failed inside Teams client. A browser window was opened to complete sign-in. After signing in, return to Teams and try again.");
+      } catch (fallbackErr) {
+        console.warn("Fallback open browser failed:", fallbackErr);
+      }
     } finally {
       setLoading(false);
     }
