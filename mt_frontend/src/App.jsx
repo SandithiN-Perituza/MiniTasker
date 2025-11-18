@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import DebugConsole from "./components/DebugConsole";
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function App() {
           </Routes>
         </main>
         <Footer />
+        <DebugConsole />
       </div>
     </Router>
   );

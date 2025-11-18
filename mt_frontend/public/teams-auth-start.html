@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <title>Teams Auth</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js" integrity="sha384-WbYpV2IIMwdFRWRRjZ0InqfoaOp5oH0orh4vK5m1j8ldHr2bqTrLszzbLQaGQJkv" crossorigin="anonymous"></script>
+  <!-- Updated MSAL to align with package.json version (~4.x) -->
+  <script src="https://alcdn.msauth.net/browser/4.21.1/js/msal-browser.min.js" crossorigin="anonymous"></script>
   <script src="https://res.cdn.office.net/teams-js/2.19.0/js/MicrosoftTeams.min.js"></script>
   <style>
     body { font-family: sans-serif; margin: 2rem; }
@@ -14,27 +15,101 @@
 <body>
   <h3>Signing you in...</h3>
   <div id="status">Initializing Microsoft Teams authentication...</div>
+  <div id="details" style="margin-top:0.5rem;font-size:12px;color:#555"></div>
+  <div id="heartbeat" style="margin-top:0.5rem;font-size:11px;color:#888"></div>
   <script>
-    (async function() {
+  (async function() {
+      // --- BEGIN EARLY HASH TOKEN PARSE (NEW) ---
+      function extractImplicitTokenFromHash() {
+        if (!location.hash || location.hash.length < 2) return null;
+        const params = new URLSearchParams(location.hash.substring(1));
+        const at = params.get('access_token');
+        const idt = params.get('id_token');
+        if (at) {
+          console.log('[TeamsAuthPopup] Detected access_token in hash (implicit / external flow)');
+          return at;
+        }
+        if (idt) {
+          console.log('[TeamsAuthPopup] Detected id_token in hash (using as fallback token)');
+          return idt;
+        }
+        return null;
+      }
+      const implicitToken = extractImplicitTokenFromHash();
+      if (implicitToken) {
+        try {
+          try { await microsoftTeams.app.initialize(); }
+          catch (e) { console.log('[TeamsAuthPopup] Teams init (implicit path) non-fatal', e); }
+          microsoftTeams.authentication.notifySuccess(implicitToken);
+          return; // Prevent running the rest of the embedded auth logic
+        } catch (e) {
+          console.log('[TeamsAuthPopup] Failed to short‑circuit with implicit token, continuing normal flow', e);
+        }
+      }
+      // --- END EARLY HASH TOKEN PARSE (NEW) ---
+
+      // Global diagnostics (visible even when DevTools unavailable in desktop client)
+      const uaInfo = navigator.userAgent;
+      console.log('[TeamsAuthPopup] userAgent:', uaInfo);
+      window.onerror = function(msg, src, line, col, err) {
+        console.log('[TeamsAuthPopup:window.onerror]', { msg, src, line, col, err });
+        const details = document.getElementById('details');
+        if (details) {
+          details.textContent = 'Script error: ' + msg + ' line ' + line + ' col ' + col;
+        }
+      };
+      window.addEventListener('unhandledrejection', evt => {
+        console.log('[TeamsAuthPopup:unhandledrejection]', evt.reason);
+        const details = document.getElementById('details');
+        if (details) {
+          details.textContent = 'Promise rejection: ' + (evt.reason && evt.reason.message || evt.reason);
+        }
+      });
   // NOTE: keep this clientId in sync with src/authConfig.js (msalConfig.auth.clientId)
   const clientId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // synced with authConfig.js
       const msalConfig = {
         auth: {
           clientId,
-          authority: "https://login.microsoftonline.com/common",
-          redirectUri: window.location.origin + "/teams-auth-start.html"
+          authority: "https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82", // tenant-specific authority for reliability
+          redirectUri: "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/teams-auth-start.html"
         },
         cache: { cacheLocation: "sessionStorage" },
-        // NEW: needed for embedded webview redirects
         system: { allowRedirectInIframe: true }
       };
-      const msalInstance = new msal.PublicClientApplication(msalConfig);
-      await msalInstance.initialize(); // NEW: ensure initialized
+      // Ensure MSAL script present (Electron webview sometimes delays script execution)
+      async function ensureMsal() {
+        if (window.msal && window.msal.PublicClientApplication) return true;
+        return await new Promise(resolve => {
+          const s = document.createElement('script');
+          s.src = 'https://alcdn.msauth.net/browser/4.21.1/js/msal-browser.min.js';
+            s.onload = () => resolve(!!(window.msal && window.msal.PublicClientApplication));
+            s.onerror = () => resolve(false);
+          document.head.appendChild(s);
+        });
+      }
+      const msalAvailable = await ensureMsal();
+      let msalInstance = null;
+      if (msalAvailable) {
+        try {
+          msalInstance = new window.msal.PublicClientApplication(msalConfig);
+          await msalInstance.initialize();
+        } catch (msalInitErr) {
+          detail('MSAL initialize failed: ' + (msalInitErr.message || msalInitErr));
+          msalInstance = null;
+        }
+      } else {
+        detail('MSAL library not available; proceeding with Teams-only auth');
+      }
 
       function update(msg) {
         const el = document.getElementById("status");
         if (el) el.textContent = msg;
         console.log("[TeamsAuthPopup]", msg);
+      }
+      function detail(msg) {
+        const el = document.getElementById("details");
+        if (el) el.textContent = msg;
+        console.log("[TeamsAuthPopup:detail]", msg);
       }
 
       try {
@@ -43,27 +118,63 @@
         return microsoftTeams.authentication.notifyFailure("Teams init failed: " + (e.message || e));
       }
 
-      // Try SSO first (avoid extra prompts if possible)
-      try {
-        const ssoToken = await microsoftTeams.authentication.getAuthToken({ silent: true });
-        update("Obtained SSO token.");
-        return microsoftTeams.authentication.notifySuccess(ssoToken);
-      } catch {
-        update("Standard SSO path failed, proceeding with MSAL interactive login...");
+      // Heartbeat to detect freeze
+      let beat = 0; const hbEl = document.getElementById('heartbeat');
+      const hbTimer = setInterval(() => { beat++; if (hbEl) hbEl.textContent = 'Heartbeat #' + beat; }, 1000);
+
+      // Progressive SSO attempts (silent then prompted)
+      async function getSso(allowPrompt) {
+        detail(`getAuthToken allowPrompt=${allowPrompt}`);
+        return await new Promise((resolve, reject) => {
+          try {
+            microsoftTeams.authentication.getAuthToken({
+              allowSignInPrompt: !!allowPrompt,
+              successCallback: t => resolve(t),
+              failureCallback: e => reject(e)
+            });
+          } catch (err) { reject(err); }
+        });
+      }
+      let token;
+      try { token = await getSso(false); } catch (e) { detail('Silent SSO failed: ' + (e.message || e)); }
+      if (!token) {
+        try { token = await getSso(true); } catch (e2) { detail('Prompted SSO failed: ' + (e2.message || e2)); }
+      }
+      if (token) {
+        update('Obtained Teams SSO token.'); clearInterval(hbTimer); return microsoftTeams.authentication.notifySuccess(token);
+      }
+      update('SSO unavailable, trying authenticate...');
+
+      const isElectron = /electron/i.test(uaInfo) || (window.process && window.process.versions && window.process.versions.electron);
+      async function runAuth(opts) {
+        return await new Promise((resolve, reject) => {
+          try {
+            microsoftTeams.authentication.authenticate({
+              url: window.location.origin + '/teams-auth-start.html#nested',
+              width: 600,
+              height: 560,
+              ...opts,
+              successCallback: r => resolve(r),
+              failureCallback: e => reject(new Error(e || 'authenticate failed'))
+            });
+          } catch (err) { reject(err); }
+        });
+      }
+      let interactive;
+      try { interactive = await runAuth(isElectron ? { isExternal: true } : {}); } catch (authErr) { detail('authenticate failed: ' + (authErr.message || authErr)); }
+      if (!interactive && !isElectron) {
+        try { interactive = await runAuth({ isExternal: true }); } catch (extErr) { detail('external authenticate failed: ' + (extErr.message || extErr)); }
+      }
+      if (interactive) {
+        update('Interactive authenticate succeeded.'); clearInterval(hbTimer); return microsoftTeams.authentication.notifySuccess(interactive);
       }
 
-      try {
-        const loginResponse = await msalInstance.loginPopup({
-          scopes: ["User.Read"],
-          prompt: "select_account"
-        });
-        update("Interactive login complete. Returning id token.");
-        // Prefer idToken for backend mapping if that's what your API expects
-        return microsoftTeams.authentication.notifySuccess(loginResponse.idToken);
-      } catch (e) {
-        console.error(e);
-        return microsoftTeams.authentication.notifyFailure("Interactive login failed: " + (e.message || e));
-      }
+      update('All embedded auth attempts failed. External sign-in required.');
+      const scopes = 'openid profile email User.Read api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user';
+      const externalUrl = `https://login.microsoftonline.com/7b967b11-c0b9-402b-b483-d694f50dfb82/oauth2/v2.0/authorize?client_id=${clientId}&response_type=token&scope=${encodeURIComponent(scopes)}&redirect_uri=${encodeURIComponent(window.location.href)}&prompt=select_account`;
+      const btn = document.createElement('button'); btn.textContent='Open external sign-in'; btn.style.marginTop='1rem'; btn.onclick=() => window.open(externalUrl,'_blank'); document.body.appendChild(btn);
+      clearInterval(hbTimer);
+      microsoftTeams.authentication.notifyFailure('Embedded auth exhausted');
     })();
   </script>
 </body>

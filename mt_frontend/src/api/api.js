@@ -5,6 +5,7 @@ const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01
 
 import { msalInstance, ensureMsalInitialized } from "../authConfig";
 import { getCurrentUser } from "../utils/auth";
+import { isInTeams } from "../utils/teams";
 
 // export async function getAuthToken() {
 //   try {
@@ -209,8 +210,9 @@ export async function sendTestNotification() {
         try {
           const errorJson = JSON.parse(responseText);
           errorDetails = errorJson.message || errorJson.error || errorJson.title || responseText;
-        } catch (e) {
+        } catch (parseErr) {
           // Keep original text if not JSON
+          console.debug("Failed to parse error response as JSON", parseErr);
         }
         
         throw new Error(`Server error (500): ${errorDetails}. Check backend logs for more details.`);
@@ -223,8 +225,9 @@ export async function sendTestNotification() {
     let result;
     try {
       result = JSON.parse(responseText);
-    } catch (e) {
+    } catch (parseErr2) {
       result = { message: responseText, success: true };
+      console.debug("Response parsing fallback used", parseErr2);
     }
 
     console.log("✅ Notification sent successfully:", result);
@@ -264,6 +267,12 @@ export async function fetchUserTasks() {
 }
 
 export async function getGraphToken() {
+  // Vacation Tracker style: rely on backend OBO when in Teams
+  if (isInTeams()) {
+    console.log("In Teams context – skipping front-end Graph token fetch (backend OBO expected).");
+    return null;
+  }
+  
   console.log("🔍 Acquiring Microsoft Graph token...");
   
   try {
@@ -573,6 +582,57 @@ export async function microsoftAuth(token) {
   return res.json();
 }
 
+// Teams SSO endpoint: backend validates the token via Microsoft.Identity.Web middleware
+// and may perform OBO to acquire a Graph token. Use when acquiring tokens via Teams SDK.
+export async function microsoftSsoAuth(token) {
+  const res = await fetch(`${API_URL}/auth/microsoft-sso`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (res.status === 404) {
+    throw new Error("404: /auth/microsoft-sso endpoint not found.");
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Microsoft SSO auth failed (status ${res.status}) ${text}`);
+  }
+  return res.json();
+}
+
+// NEW: unified login attempt using a Teams (getAuthToken/authenticate) token or MSAL id/access token.
+// Tries normal microsoftAuth first; if it fails with a 401 / format issue, falls back to microsoftSsoAuth.
+export async function unifiedMicrosoftLogin(token) {
+  if (isInTeams()) {
+    try {
+      return await microsoftSsoAuth(token);
+    } catch (primary) {
+      console.warn("Primary Teams SSO endpoint failed, trying microsoftAuth fallback", primary);
+      try {
+        return await microsoftAuth(token);
+      } catch (fallback) {
+        throw new Error(`Unified Microsoft Teams login failed. SSO: ${primary.message}. Fallback: ${fallback.message}`);
+      }
+    }
+  }
+  // Browser path unchanged
+  try {
+    return await microsoftAuth(token);
+  } catch (e) {
+    const msg = e?.message || '';
+    if (/401|invalid/i.test(msg)) {
+      try {
+        return await microsoftSsoAuth(token);
+      } catch (e2) {
+        throw new Error(`Unified Microsoft login failed. Primary: ${msg}. Fallback: ${e2.message || e2}`);
+      }
+    }
+    throw e;
+  }
+}
+
 // Comments
 // Fetch comments for a task
 export async function fetchComments(taskId) {
@@ -634,6 +694,23 @@ export async function deleteSubtask(taskId, subtaskId) {
   });
   if (!res.ok) {
     throw new Error("Failed to delete subtask");
+  }
+  return res.json();
+}
+
+// Add optional directory sync after SSO
+export async function syncTeamsDirectory(token) {
+  // Backend should validate bearer and sync users from Graph
+  const res = await fetch(`${API_URL}/users/teams-sync`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    }
+  });
+  if (!res.ok) {
+    console.warn("Teams directory sync failed:", res.status);
+    return null;
   }
   return res.json();
 }
