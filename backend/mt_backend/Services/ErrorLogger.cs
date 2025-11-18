@@ -1,4 +1,5 @@
-﻿using mt_backend.Data;
+﻿using BackendExamples;
+using mt_backend.Data;
 using mt_backend.Models;
 using mt_backend.Services.Interfaces;
 
@@ -59,5 +60,30 @@ namespace mt_backend.Services
                 }
             }
         }
+
+
+        public async Task LogAsync(ErrorLogDto dto)
+        {
+            try
+            {
+                var log = new ErrorLog
+                {
+                    Message = dto.Message ?? "(no message)",
+                    StackTrace = dto.StackTrace ?? "No stack trace",
+                    Source = dto.Source ?? "frontend",
+                    Timestamp = dto.Timestamp != default ? dto.Timestamp : DateTime.UtcNow
+                };
+
+                _context.ErrorLogs.Add(log);
+                await _context.SaveChangesAsync();
+
+                Console.WriteLine($"✅ ERROR LOG SAVED FROM DTO: [{log.Source}] {log.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ LOGGING FAILED (DTO): {ex.Message}");
+            }
+        }
+
     }
 }
