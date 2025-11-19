@@ -1,6 +1,6 @@
 // Token management utilities
 import { getCurrentUser } from "./auth";
-import { msalInstance, ensureMsalInitialized } from "../authConfig";
+import { msalInstance, ensureMsalInitialized, apiScope } from "../authConfig";
 
 const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01.azurewebsites.net/api";
 
@@ -15,7 +15,7 @@ export async function forceTokenRefresh() {
     if (accounts.length > 0) {
       console.log("Found MSAL account, attempting silent token acquisition");
       const tokenRequest = {
-        scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"], // Use API scope instead of User.Read
+        scopes: [apiScope], // Use API scope instead of User.Read
         account: accounts[0]
       };
       

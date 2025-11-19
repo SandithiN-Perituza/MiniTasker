@@ -14,9 +14,9 @@ export const msalConfig = {
   },
 };
 
-export const apiRequest = {
-  scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"], // ✅ correct format
-};
+// NEW: unified API scope (matches Teams manifest webApplicationInfo.resource)
+export const apiScope = "api://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net/access_as_user";
+export const apiRequest = { scopes: [apiScope] };
 
 // NEW: Graph scopes for profile retrieval
 export const graphScopes = ["User.Read"];
@@ -39,6 +39,10 @@ export async function acquireApiToken() {
   try {
     return await msalInstance.acquireTokenSilent(apiRequest);
   } catch {
-    return await msalInstance.acquireTokenPopup(apiRequest);
+    try {
+      return await msalInstance.acquireTokenPopup(apiRequest);
+    } catch {
+      return null; // NEW: tolerate failure
+    }
   }
 }

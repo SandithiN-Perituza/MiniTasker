@@ -89,7 +89,6 @@ export default function TaskForm({ onSuccess, task }) {
         // For updates, use the original updateTask function
         await updateTask(task.id, { ...task, ...payload });
       } else {
-        // For new tasks, get the assigned user's Azure AD ID
         const assignedUserId = parseInt(form.assignedTo);
         
         console.log("🔍 Getting Azure AD ID for assigned user:", assignedUserId);
@@ -101,9 +100,12 @@ export default function TaskForm({ onSuccess, task }) {
           console.log("✅ Got user details from backend:", userDetails);
           
           if (userDetails.hasAzureAdId && userDetails.azureAdId) {
-            console.log("🔔 Creating task with notification for user:", userDetails);
-            // Use createTaskWithNotification with the Azure AD ID
-            await createTaskWithNotification(payload, userDetails.azureAdId);
+            try {
+              await createTaskWithNotification(payload, userDetails.azureAdId);
+            } catch (notifyErr) {
+              console.warn("Notification path failed, fallback to plain create:", notifyErr.message);
+              await createTask(payload);
+            }
           } else {
             console.warn("⚠️ Assigned user has no Azure AD ID, creating task without notification");
             alert(`Warning: ${userDetails.name} hasn't logged in via Microsoft yet, so they won't receive a Teams notification.`);

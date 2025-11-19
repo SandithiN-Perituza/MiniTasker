@@ -22,7 +22,13 @@ export default function Header({ onMenuClick }) {
       console.log("🔔 Starting notification test from header...");
       console.log("Current user:", user);
       
-      const result = await sendTestNotification();
+      const result = await sendTestNotification().catch(e => {
+        if (/Could not acquire authentication token/i.test(e.message)) {
+          console.warn("Skipping notification test, no token.");
+          return { notificationSkipped: true };
+        }
+        throw e;
+      });
       console.log("✅ Notification result:", result);
       setMessage("✅ Notification sent!");
       setTimeout(() => setMessage(""), 5000);

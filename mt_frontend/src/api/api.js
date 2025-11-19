@@ -3,7 +3,7 @@ const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01
 
 // Tasks
 
-import { msalInstance, ensureMsalInitialized } from "../authConfig";
+import { msalInstance, ensureMsalInitialized, apiScope, graphScopes } from "../authConfig";
 import { getCurrentUser } from "../utils/auth";
 import { isInTeams } from "../utils/teams";
 
@@ -64,20 +64,11 @@ export async function getAuthToken() {
     console.log("Available accounts:", accounts.length);
     
     if (accounts.length === 0) {
-      throw new Error("No Microsoft accounts found. Please log in with Microsoft first.");
+      console.warn("No MSAL account; returning null token");
+      return null;
     }
     
-    const account = accounts[0];
-    console.log("Using account for token:", account.username);
-    
-    // Use the API scope instead of User.Read for backend authentication
-    const tokenRequest = {
-      scopes: ["api://59aef810-e681-4b84-bc17-2561fe854c0e/access_as_user"],
-      account: account,
-      forceRefresh: false
-    };
-    
-    console.log("Token request:", tokenRequest);
+    const tokenRequest = { scopes: [apiScope], account: accounts[0], forceRefresh: false };
     
     try {
       // Try silent token acquisition first
@@ -279,41 +270,17 @@ export async function getGraphToken() {
     await ensureMsalInitialized();
     
     const accounts = msalInstance.getAllAccounts();
-    if (accounts.length === 0) {
-      throw new Error("No Microsoft accounts found. Please log in first.");
-    }
-    
-    const account = accounts[0];
-    
-    // ✅ Request token specifically for Microsoft Graph
-    const tokenRequest = {
-      scopes: [
-        "https://graph.microsoft.com/User.Read",
-        "https://graph.microsoft.com/TeamsActivity.Send",
-        
-      ],
-      account: account,
-      forceRefresh: false
-    };
-    // ,
-    // "https://graph.microsoft.com/User.Read.All"
-    console.log("📝 Graph token request:", tokenRequest);
-    
+    if (!accounts.length) return null;
+    const req = { scopes: graphScopes, account: accounts[0] };
     try {
-      const response = await msalInstance.acquireTokenSilent(tokenRequest);
-      console.log("✅ Successfully acquired Microsoft Graph token (silent)");
-      return response.accessToken;
-    } catch (silentError) {
-      console.log("Silent token acquisition failed, trying popup...", silentError);
-      
-      const response = await msalInstance.acquireTokenPopup(tokenRequest);
-      console.log("✅ Successfully acquired Microsoft Graph token (popup)");
-      return response.accessToken;
+      const r = await msalInstance.acquireTokenSilent(req);
+      return r.accessToken;
+    } catch {
+      try { const r2 = await msalInstance.acquireTokenPopup(req); return r2.accessToken; }
+      catch { return null; }
     }
-    
-  } catch (error) {
-    console.error("❌ Failed to get Microsoft Graph token:", error);
-    throw new Error(`Graph token acquisition failed: ${error.message}`);
+  } catch {
+    return null;
   }
 }
 
@@ -322,45 +289,14 @@ export async function getGraphToken() {
 export async function createTask(task) {
   console.log("🚀 Creating task with notification support...");
 
-  let backendToken;
-  
-  try {
-    backendToken = await getAuthToken();
-    console.log("✅ Authentication token acquired for task creation");
-  } catch (tokenError) {
-    console.error("❌ Token acquisition failed:", tokenError);
-    throw new Error("Could not acquire authentication token. Please try logging in with Microsoft account first.");
+  let backendToken = await getAuthToken(); // may be null now
+  let graphToken = await getGraphToken();
+  if (!backendToken) {
+    console.warn("Proceeding without backend token; notification will be skipped");
   }
 
-    // Get Microsoft Graph token for notifications
-  let graphToken;
-  try {
-    graphToken = await getGraphToken();
-    console.log("✅ Microsoft Graph token acquired");
-  } catch (graphError) {
-    console.warn("⚠️ Graph token acquisition failed:", graphError);
-    // Continue without graph token - backend will handle fallback
-  }
-
-  let azureUserId, userEmail, userName;
-  try {
-    const tokenPayload = JSON.parse(atob(backendToken.split('.')[1]));
-    azureUserId = tokenPayload.oid || tokenPayload.sub;
-    userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
-    userName = tokenPayload.name;
-    
-    console.log("📋 User info extracted from token:", {
-      azureUserId,
-      userEmail,
-      userName
-    });
-  } catch (error) {
-    console.error("Failed to parse token:", error);
-    throw new Error("Invalid token format");
-  }
-
-  // Create the request body with notification data
-  const requestBody = {
+  // Minimal body if token missing
+  const requestBody = backendToken ? {
     message: "Test notification from MiniTasker - Task Assignment",
     userId: azureUserId,
     userEmail: userEmail,
@@ -373,6 +309,14 @@ export async function createTask(task) {
       assignedTo: task.assignedTo,
       dueDate: task.dueDate
     }
+  } : {
+    task: {
+      title: task.title,
+      description: task.description,
+      assignedTo: task.assignedTo,
+      dueDate: task.dueDate
+    },
+    notificationSkipped: true
   };
 
   console.log("📤 Sending task creation request:", {
@@ -387,9 +331,9 @@ export async function createTask(task) {
   try {
     const response = await fetch(`${API_URL}/tasks`, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${backendToken}` // ✅ Send the actual token
+        ...(backendToken ? { Authorization: `Bearer ${backendToken}` } : {})
       },
       body: JSON.stringify(requestBody)
     });
@@ -445,20 +389,11 @@ export async function createTaskWithNotification(taskData, assignedUserAzureAdId
     throw new Error("Please log in to create tasks");
   }
 
-  let token;
-  try {
-    token = await getAuthToken();
-  } catch (tokenError) {
-    console.error("❌ Token acquisition failed:", tokenError);
-    throw new Error("Could not acquire authentication token");
-  }
-
-  let graphT;
-  try {
-    graphT = await getGraphToken();
-  } catch (graphError) {
-    console.warn("⚠️ Graph token acquisition failed:", graphError);
-    // Continue without graph token - backend will handle fallback
+  let token = await getAuthToken();
+  let graphT = await getGraphToken();
+  if (!token) {
+    console.warn("No token; falling back to plain task creation without notification.");
+    return createTask(taskData);
   }
 
   // Extract user information from token (same as button)
