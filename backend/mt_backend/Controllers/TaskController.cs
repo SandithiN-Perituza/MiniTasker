@@ -137,8 +137,8 @@ namespace mt_backend.Controllers
                     {
                         PropertyNameCaseInsensitive = true,
                         NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
-                    
-                });
+
+                    });
 
                     if (notificationRequest?.Task == null)
                     {
@@ -200,19 +200,33 @@ namespace mt_backend.Controllers
                     "TasksController.CreateTask"
                 );
 
-                // Handle notifications
+                // Handle notifications and capture results
+                NotificationResultDto notificationResult;
                 if (isNotificationRequest && notificationRequest != null)
                 {
                     // Use the provided information from frontend
-                    await SendNotificationWithProvidedInfo(createdTask, notificationRequest);
+                    notificationResult = await SendNotificationWithProvidedInfo(createdTask, notificationRequest);
                 }
                 else
                 {
                     // Fallback to database lookup method
-                    await SendNotificationToAssignedUser(createdTask, actorName);
+                    notificationResult = await SendNotificationToAssignedUser(createdTask, actorName);
                 }
 
-                return CreatedAtAction(nameof(GetTaskById), new { id = createdTask.Id }, createdTask);
+                // Create enhanced response with notification details
+                var response = new
+                {
+                    task = createdTask,
+                    notification = notificationResult,
+                    metadata = new
+                    {
+                        taskCreatedAt = DateTime.UtcNow,
+                        notificationAttempted = true,
+                        requestType = isNotificationRequest ? "notification-request" : "simple-request"
+                    }
+                };
+
+                return CreatedAtAction(nameof(GetTaskById), new { id = createdTask.Id }, response);
             }
             catch (Exception ex)
             {
@@ -226,8 +240,15 @@ namespace mt_backend.Controllers
                 return StatusCode(500, new { error = ex.Message });
             }
         }
-        private async Task SendNotificationToAssignedUser(TaskItem task, string? actorName)
+
+        private async Task<NotificationResultDto> SendNotificationToAssignedUser(TaskItem task, string? actorName)
         {
+            var result = new NotificationResultDto
+            {
+                Method = "SendNotificationToAssignedUser (Database Lookup + OBO)",
+                TokenType = "Authorization Header Token"
+            };
+
             try
             {
                 if (task.AssignedTo == null)
@@ -237,11 +258,14 @@ namespace mt_backend.Controllers
                         $"TaskId: {task.Id}",
                         "TasksController.SendNotificationToAssignedUser"
                     );
-                    return;
+                    result.Success = false;
+                    result.Message = "No assigned user";
+                    return result;
                 }
 
                 // Get the assigned user's Azure AD ID from the database
                 var assignedUserAzureAdId = await _userService.ResolveAzureUserId(task.AssignedTo.Value);
+                result.RecipientId = assignedUserAzureAdId;
 
                 // Get the access token from the Authorization header
                 var authHeader = Request.Headers["Authorization"].ToString();
@@ -253,7 +277,10 @@ namespace mt_backend.Controllers
                         "TasksController.SendNotificationToAssignedUser"
                     );
                     Console.WriteLine($"📝 NOTIFICATION SKIPPED: No access token available for task {task.Id}");
-                    return;
+
+                    result.Success = false;
+                    result.Message = "No access token available";
+                    return result;
                 }
 
                 var token = authHeader.Substring("Bearer ".Length);
@@ -265,9 +292,11 @@ namespace mt_backend.Controllers
                 var senderName = jwtToken.Claims.FirstOrDefault(c => c.Type == "name")?.Value ??
                                actorName ??
                                "Unknown User";
+                result.SenderName = senderName;
 
                 // Create notification message
                 var message = $"You have been assigned a new task: '{task.Title}'";
+                result.Message = message;
 
                 await _errorLogger.LogAsync(
                     "Sending notification to assigned user",
@@ -275,11 +304,10 @@ namespace mt_backend.Controllers
                     "TasksController.SendNotificationToAssignedUser"
                 );
 
-                // Send notification using the delegated permissions method
-                await _notificationService.SendNotificationWithTokenAsync(
+                await _notificationService.SendNotificationWithOBOTokenAsync(
                     recipientAzureAdId: assignedUserAzureAdId,
                     message: message,
-                    accessToken: token,
+                    userAccessToken: token,  // ✅ Let OBO handle token exchange
                     senderName: senderName
                 );
 
@@ -288,6 +316,10 @@ namespace mt_backend.Controllers
                     $"Notification sent to {assignedUserAzureAdId} for task {task.Id}",
                     "TasksController.SendNotificationToAssignedUser"
                 );
+
+                result.Success = true;
+                result.Message = $"Notification sent successfully via OBO to {assignedUserAzureAdId}";
+                return result;
             }
             catch (Exception notificationEx)
             {
@@ -300,11 +332,20 @@ namespace mt_backend.Controllers
                 // Don't fail the entire request if notification fails
                 Console.WriteLine($"⚠️ NOTIFICATION FAILED: {notificationEx.Message}");
                 Console.WriteLine($"✅ TASK CREATED: Task {task.Id} created successfully despite notification failure");
+
+                result.Success = false;
+                result.ErrorDetails = notificationEx.Message;
+                return result;
             }
         }
 
-        private async Task SendNotificationWithProvidedInfo(TaskItem task, CreateTaskWithNotificationRequestDto request)
+        private async Task<NotificationResultDto> SendNotificationWithProvidedInfo(TaskItem task, CreateTaskWithNotificationRequestDto request)
         {
+            var result = new NotificationResultDto
+            {
+                Method = "SendNotificationWithProvidedInfo (Frontend Provided Info)"
+            };
+
             try
             {
                 await _errorLogger.LogAsync(
@@ -312,18 +353,56 @@ namespace mt_backend.Controllers
                     $"TaskId: {task.Id}, AssignedUserAzureAdId: '{request.AssignedUserAzureAdId}', IsNull: {string.IsNullOrEmpty(request.AssignedUserAzureAdId)}",
                     "TasksController.SendNotificationWithProvidedInfo"
                 );
-                if (string.IsNullOrEmpty(request.AssignedUserAzureAdId))
+
+                // If AssignedUserAzureAdId is missing, try to resolve it from the database
+                string? assignedUserAzureAdId = request.AssignedUserAzureAdId;
+
+                if (string.IsNullOrEmpty(request.AssignedUserAzureAdId) && task.AssignedTo.HasValue)
                 {
                     await _errorLogger.LogAsync(
-                        "Notification skipped - no assigned user Azure AD ID provided",
+                        "No assigned user Azure AD ID provided, attempting database lookup",
+                        $"TaskId: {task.Id}, AssignedTo: {task.AssignedTo}",
+                        "TasksController.SendNotificationWithProvidedInfo"
+                    );
+
+                    try
+                    {
+                        assignedUserAzureAdId = await _userService.ResolveAzureUserId(task.AssignedTo.Value);
+
+                        await _errorLogger.LogAsync(
+                            "Database lookup result",
+                            $"TaskId: {task.Id}, AssignedTo: {task.AssignedTo}, ResolvedAzureAdId: '{assignedUserAzureAdId}'",
+                            "TasksController.SendNotificationWithProvidedInfo"
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        await _errorLogger.LogAsync(
+                            $"Failed to resolve Azure AD ID from database: {ex.Message}",
+                            $"TaskId: {task.Id}, AssignedTo: {task.AssignedTo}",
+                            "TasksController.SendNotificationWithProvidedInfo"
+                        );
+                    }
+                }
+
+                result.RecipientId = assignedUserAzureAdId;
+
+                if (string.IsNullOrEmpty(assignedUserAzureAdId))
+                {
+                    await _errorLogger.LogAsync(
+                        "Notification skipped - no assigned user Azure AD ID available after all resolution attempts",
                         $"TaskId: {task.Id}",
                         "TasksController.SendNotificationWithProvidedInfo"
                     );
-                    return;
+
+                    result.Success = false;
+                    result.Message = "No assigned user Azure AD ID available";
+                    return result;
                 }
 
-                // Use Graph token if available, otherwise fall back to auth token
-                var accessToken = !string.IsNullOrEmpty(request.GraphToken) ? request.GraphToken : request.AuthToken;
+                // ✅ ENHANCED: Try Graph token first, fallback to auth token with OBO
+                var accessToken = request.GraphToken;
+                bool usingGraphToken = !string.IsNullOrEmpty(accessToken);
 
                 if (string.IsNullOrEmpty(accessToken))
                 {
@@ -339,35 +418,69 @@ namespace mt_backend.Controllers
                 {
                     await _errorLogger.LogAsync(
                         "Notification skipped - no access token available",
-                        $"TaskId: {task.Id}, AssignedUserAzureAdId: {request.AssignedUserAzureAdId}",
+                        $"TaskId: {task.Id}, AssignedUserAzureAdId: {assignedUserAzureAdId}",
                         "TasksController.SendNotificationWithProvidedInfo"
                     );
                     Console.WriteLine($"📝 NOTIFICATION SKIPPED: No access token available for task {task.Id}");
-                    return;
+
+                    result.Success = false;
+                    result.Message = "No access token available";
+                    return result;
                 }
 
                 var senderName = request.UserName ?? "Unknown User";
                 var message = request.Message ?? $"You have been assigned a new task: '{task.Title}'";
 
+                result.SenderName = senderName;
+                result.Message = message;
+                result.TokenType = usingGraphToken ? "Graph Token (Direct)" : "Authorization Header Token (OBO)";
+
                 await _errorLogger.LogAsync(
                     "Sending notification with provided information",
-                    $"AssignedUserAzureAdId: {request.AssignedUserAzureAdId}, SenderName: {senderName}, TaskId: {task.Id}, UsingGraphToken: {!string.IsNullOrEmpty(request.GraphToken)}",
+                    $"AssignedUserAzureAdId: {assignedUserAzureAdId}, SenderName: {senderName}, TaskId: {task.Id}, UsingGraphToken: {usingGraphToken}",
                     "TasksController.SendNotificationWithProvidedInfo"
                 );
 
-                // Send notification using the delegated permissions method
-                await _notificationService.SendNotificationWithTokenAsync(
-                    recipientAzureAdId: request.AssignedUserAzureAdId,
-                    message: message,
-                    accessToken: accessToken,
-                    senderName: senderName
-                );
+                // ✅ ENHANCED: Use appropriate method based on token type
+                if (usingGraphToken)
+                {
+                    result.Method += " - Direct Graph Token";
 
-                await _errorLogger.LogAsync(
-                    "Notification sent successfully with provided info",
-                    $"Notification sent to {request.AssignedUserAzureAdId} for task {task.Id}",
-                    "TasksController.SendNotificationWithProvidedInfo"
-                );
+                    await _notificationService.SendNotificationWithTokenAsync(
+                        recipientAzureAdId: assignedUserAzureAdId,
+                        message: message,
+                        accessToken: accessToken,
+                        senderName: senderName
+                    );
+
+                    await _errorLogger.LogAsync(
+                        "Notification sent successfully with provided info",
+                        $"Notification sent to {assignedUserAzureAdId} for task {task.Id}",
+                        "TasksController.SendNotificationWithProvidedInfo"
+                    );
+                }
+                else
+                {
+                    result.Method += " - OBO Token Exchange";
+
+                    // OBO method for API tokens - let backend try to exchange for Graph token
+                    await _notificationService.SendNotificationWithOBOTokenAsync(
+                        recipientAzureAdId: assignedUserAzureAdId,
+                        message: message,
+                        userAccessToken: accessToken,
+                        senderName: senderName
+                    );
+
+                    await _errorLogger.LogAsync(
+                        "Notification sent successfully with OBO method",
+                        $"Notification sent to {assignedUserAzureAdId} for task {task.Id}",
+                        "TasksController.SendNotificationWithProvidedInfo"
+                    );
+                }
+
+                result.Success = true;
+                result.Message = $"Notification sent successfully to {assignedUserAzureAdId}";
+                return result;
             }
             catch (Exception notificationEx)
             {
@@ -380,8 +493,13 @@ namespace mt_backend.Controllers
                 // Don't fail the entire request if notification fails
                 Console.WriteLine($"⚠️ NOTIFICATION FAILED: {notificationEx.Message}");
                 Console.WriteLine($"✅ TASK CREATED: Task {task.Id} created successfully despite notification failure");
+
+                result.Success = false;
+                result.ErrorDetails = notificationEx.Message;
+                return result;
             }
         }
+
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(int id, TaskItem updatedTask)
         {

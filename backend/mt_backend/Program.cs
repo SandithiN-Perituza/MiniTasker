@@ -73,7 +73,9 @@ if (hasValidAzureAd)
                         frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
                         $"api://{frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"}",
                         // Microsoft Graph
-                        "00000003-0000-0000-c000-000000000000"
+                        "00000003-0000-0000-c000-000000000000",
+                         //The client ID that's actually issuing tokens
+                        "5e3ce6c0-2b1f-4285-8d4b-75ee78787346",
                     },
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,

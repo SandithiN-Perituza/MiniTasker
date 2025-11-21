@@ -1,10 +1,15 @@
-﻿namespace mt_backend.Services.Interfaces
+﻿using mt_backend.DTOs;
+
+namespace mt_backend.Services.Interfaces
 {
     public interface INotificationService
     {
         Task SendNotificationAsync(string userId, string message);
 
-        // New method for sending notifications with delegated permissions
-        Task SendNotificationWithTokenAsync(string recipientAzureAdId, string message, string accessToken, string? senderName = null);
+        // Updated to return NotificationResultDto
+        Task<NotificationResultDto> SendNotificationWithTokenAsync(string recipientAzureAdId, string message, string accessToken, string? senderName = null);
+
+        // Updated to return NotificationResultDto
+        Task<NotificationResultDto> SendNotificationWithOBOTokenAsync(string recipientAzureAdId, string message, string userAccessToken, string? senderName = null);
     }
 }

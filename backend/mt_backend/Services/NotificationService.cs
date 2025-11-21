@@ -1,8 +1,11 @@
-﻿using mt_backend.Services.Interfaces;
-using System.Threading.Tasks;
+﻿using Microsoft.Extensions.Logging;
+using Microsoft.Graph;
+using mt_backend.DTOs;
+using mt_backend.Services.Interfaces;
+using Newtonsoft.Json;
+using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http.Headers;
 using System.Text;
-using Newtonsoft.Json;
 
 namespace mt_backend.Services
 {
@@ -10,13 +13,16 @@ namespace mt_backend.Services
     {
         private readonly IErrorLogger _errorLogger;
         private readonly IGraphTokenService? _graphTokenService;
+        private readonly ILogger<NotificationService> _logger;
 
-        public NotificationService(IErrorLogger errorLogger, IGraphTokenService? graphTokenService = null)
+        public NotificationService(IErrorLogger errorLogger, IGraphTokenService? graphTokenService = null, ILogger<NotificationService>? logger = null)
         {
             _errorLogger = errorLogger;
             _graphTokenService = graphTokenService;
+            _logger = logger ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<NotificationService>.Instance;
         }
 
+        // High-level entry: keep this to remain compatible with callers
         public async Task SendNotificationAsync(string userId, string message)
         {
             try
@@ -27,453 +33,292 @@ namespace mt_backend.Services
                     "NotificationService.SendNotificationAsync"
                 );
 
-                // Check if Microsoft Graph API is available
                 if (_graphTokenService != null)
                 {
-                    await _errorLogger.LogAsync(
-                        "Graph API available, attempting to send Teams notification",
-                        $"User: {userId}, Message: {message}",
-                        "NotificationService.SendNotificationAsync"
-                    );
-
-                    // Use Microsoft Graph API to send Teams notification
+                    // This method will internally choose OBO or app-only or fail gracefully
                     await SendTeamsNotificationAsync(userId, message);
+                    return;
                 }
-                else
-                {
-                    // Fallback to logging when Graph API is not available
-                    await _errorLogger.LogAsync(
-                        $"Graph API not available - notification logged instead",
-                        $"User: {userId}, Message: {message}",
-                        "NotificationService.SendNotificationAsync"
-                    );
-                    Console.WriteLine($"📝 NOTIFICATION (Logged): {message} for user {userId}");
-                }
+
+                // Fallback logging-only behaviour
+                await _errorLogger.LogAsync(
+                    $"Graph API not available - notification logged instead",
+                    $"User: {userId}, Message: {message}",
+                    "NotificationService.SendNotificationAsync"
+                );
+                Console.WriteLine($"📝 NOTIFICATION (Logged): {message} for user {userId}");
             }
             catch (Exception ex)
             {
                 await _errorLogger.LogAsync(
-                    $"Error sending notification: {ex}",
+                    $"Error sending notification: {ex.Message}",
                     ex.StackTrace ?? "No stack trace",
                     "NotificationService.SendNotificationAsync"
                 );
-
                 Console.WriteLine($"❌ NOTIFICATION ERROR: {ex.Message}");
-
-                // Don't re-throw here, as we want the operation to succeed even if notification fails
-                Console.WriteLine($"📝 NOTIFICATION (Error Fallback): {message} for user {userId}");
             }
         }
+
+        // Internal: prefer server-side OBO using current context if available (this method is used by controller flows)
         private async Task SendTeamsNotificationAsync(string senderUserId, string message)
         {
             try
             {
                 await _errorLogger.LogAsync(
                     "Starting Teams notification process",
-                    $"Sender: {senderUserId}, Message: {message}, UserID Format Check: {(Guid.TryParse(senderUserId, out _) ? "Valid GUID" : "Invalid GUID")}",
+                    $"Sender: {senderUserId}, Message: {message}",
                     "NotificationService.SendTeamsNotificationAsync"
                 );
 
-                // Get access token for Microsoft Graph
-                var scopes = new[] {
-                    "https://graph.microsoft.com/TeamsActivity.Send",
-                    "https://graph.microsoft.com/User.Read",
-                    "https://graph.microsoft.com/User.Read.All"
-                };
+                // Scopes for activity feed
+                var scopes = new[] { "https://graph.microsoft.com/TeamsActivity.Send" };
 
-                var accessToken = await _graphTokenService!.GetAccessTokenOnBehalfOfAsync(scopes);
+                // Try to obtain a Graph token using the IGraphTokenService (ITokenAcquisition or manual OBO)
+                string? accessToken = null;
 
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    await _errorLogger.LogAsync(
-                        "No access token available for Graph API",
-                        $"Sender: {senderUserId}, Message: {message}",
-                        "NotificationService.SendTeamsNotificationAsync"
-                    );
-                    Console.WriteLine($"📝 NOTIFICATION (No Token): {message} for sender {senderUserId}");
-                    return;
-                }
-
-                await _errorLogger.LogAsync(
-                    "Access token acquired successfully",
-                    $"Token length: {accessToken.Length}, Sender: {senderUserId}",
-                    "NotificationService.SendTeamsNotificationAsync"
-                );
-
-                // Get Sandithi's Azure AD Object ID
-                var recipientUserId = await GetSandithiUserId(accessToken);
-
-                if (string.IsNullOrEmpty(recipientUserId))
-                {
-                    await _errorLogger.LogAsync(
-                        "Could not find recipient user (Sandithi)",
-                        $"Unable to send notification from {senderUserId}",
-                        "NotificationService.SendTeamsNotificationAsync"
-                    );
-                    Console.WriteLine($"❌ RECIPIENT NOT FOUND: Could not find Sandithi's user ID");
-                    return;
-                }
-
-                // Prevent self-notification
-                if (senderUserId.Equals(recipientUserId, StringComparison.OrdinalIgnoreCase))
-                {
-                    await _errorLogger.LogAsync(
-                        "Cannot send notification to self",
-                        $"Sender and recipient are the same: {senderUserId}",
-                        "NotificationService.SendTeamsNotificationAsync"
-                    );
-                    Console.WriteLine($"❌ SELF-NOTIFICATION: Cannot send notification to yourself");
-                    Console.WriteLine($"📝 NOTIFICATION (Self-notification blocked): {message}");
-                    return;
-                }
-
-                // Try Teams Activity Feed notification from sender to recipient
-                await TryTeamsActivityFeedNotification(senderUserId, recipientUserId, message, accessToken);
-            }
-            catch (HttpRequestException httpEx)
-            {
-                await _errorLogger.LogAsync(
-                    $"HTTP request error sending Teams notification: {httpEx}",
-                    httpEx.StackTrace ?? "No stack trace",
-                    "NotificationService.SendTeamsNotificationAsync"
-                );
-                Console.WriteLine($"🌐 HTTP ERROR: {httpEx.Message}");
-                Console.WriteLine($"📝 NOTIFICATION (HTTP Error Fallback): {message} for sender {senderUserId}");
-            }
-            catch (Exception ex)
-            {
-                await _errorLogger.LogAsync(
-                    $"Error sending Teams notification via Graph API: {ex}",
-                    ex.StackTrace ?? "No stack trace",
-                    "NotificationService.SendTeamsNotificationAsync"
-                );
-                Console.WriteLine($"⚠️ GRAPH API ERROR: {ex.Message}");
-                Console.WriteLine($"📝 NOTIFICATION (Error Fallback): {message} for sender {senderUserId}");
-            }
-        }
-        
-        private async Task<string?> GetSandithiUserId(string accessToken)
-        {
-            try
-            {
-                // Look up Sandithi by email 
-                var sandithiEmail = "sandithin@perituza.com";
-
-                await _errorLogger.LogAsync(
-                    "Looking up Sandithi's user information",
-                    $"Using Email: {sandithiEmail}",
-                    "NotificationService.GetSandithiUserId"
-                );
-
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-
-                // Look up by email address
-                var emailResponse = await httpClient.GetAsync($"https://graph.microsoft.com/v1.0/users/{Uri.EscapeDataString(sandithiEmail)}");
-
-                if (emailResponse.IsSuccessStatusCode)
-                {
-                    var emailContent = await emailResponse.Content.ReadAsStringAsync();
-                    var emailUserInfo = JsonConvert.DeserializeObject<dynamic>(emailContent);
-                    var actualObjectId = emailUserInfo?.id?.ToString();
-
-                    await _errorLogger.LogAsync(
-                        "Found Sandithi by email",
-                        $"Object ID: {actualObjectId}, Email: {emailUserInfo?.mail?.ToString() ?? emailUserInfo?.userPrincipalName?.ToString()}",
-                        "NotificationService.GetSandithiUserId"
-                    );
-
-                    return actualObjectId;
-                }
-
-                await _errorLogger.LogAsync(
-                    "Could not find Sandithi in Microsoft Graph",
-                    $"Email lookup: {emailResponse.StatusCode}, Response: {await emailResponse.Content.ReadAsStringAsync()}",
-                    "NotificationService.GetSandithiUserId"
-                );
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                await _errorLogger.LogAsync(
-                    $"Error looking up Sandithi's user ID: {ex}",
-                    ex.StackTrace ?? "No stack trace",
-                    "NotificationService.GetSandithiUserId"
-                );
-                return null;
-            }
-        }
-
-        public async Task SendNotificationWithTokenAsync(string recipientAzureAdId, string message, string accessToken, string? senderName = null)
-        {
-            try
-            {
-                await _errorLogger.LogAsync(
-                    $"Sending notification with delegated token to user {recipientAzureAdId}",
-                    $"Message: {message}, Sender: {senderName ?? "Unknown"}, Token available: {!string.IsNullOrEmpty(accessToken)}",
-                    "NotificationService.SendNotificationWithTokenAsync"
-                );
-
-                if (string.IsNullOrEmpty(accessToken))
-                {
-                    await _errorLogger.LogAsync(
-                        "No access token provided for delegated notification",
-                        $"Recipient: {recipientAzureAdId}, Message: {message}",
-                        "NotificationService.SendNotificationWithTokenAsync"
-                    );
-                    Console.WriteLine($"📝 NOTIFICATION (No Token): {message} for user {recipientAzureAdId}");
-                    return;
-                }
-
-                string? senderAzureAdId = null;
                 try
                 {
-                    var tokenHandler = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler();
-                    var jwtToken = tokenHandler.ReadJwtToken(accessToken);
-                    senderAzureAdId = jwtToken.Claims.FirstOrDefault(c => c.Type == "oid")?.Value ??
-                                     jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-
-                    await _errorLogger.LogAsync(
-                        "Extracted sender info from token",
-                        $"Sender Azure AD ID: {senderAzureAdId}, Recipient: {recipientAzureAdId}",
-                        "NotificationService.SendNotificationWithTokenAsync"
-                    );
+                    // This variant expects the GraphTokenService's GetAccessTokenOnBehalfOfAsync(scopes)
+                    // to use the ambient HttpContext principal when available.
+                    accessToken = await _graphTokenService!.GetAccessTokenOnBehalfOfAsync(scopes);
                 }
                 catch (Exception ex)
                 {
-                    await _errorLogger.LogAsync(
-                        $"Could not extract sender ID from token: {ex.Message}",
-                        $"Will continue with notification attempt",
-                        "NotificationService.SendNotificationWithTokenAsync"
-                    );
+                    _logger.LogWarning(ex, "Ambient OBO attempt failed - will expect controllers to call SendNotificationWithOBOTokenAsync when they have a user token.");
                 }
 
-                // ✅ ADD: Prevent self-notification
-                if (!string.IsNullOrEmpty(senderAzureAdId) &&
-                    senderAzureAdId.Equals(recipientAzureAdId, StringComparison.OrdinalIgnoreCase))
+                if (string.IsNullOrEmpty(accessToken))
                 {
                     await _errorLogger.LogAsync(
-                        "Self-notification detected - skipping notification",
-                        $"Sender and recipient are the same: {senderAzureAdId}",
-                        "NotificationService.SendNotificationWithTokenAsync"
+                        "Ambient OBO returned no token - skipping direct server-side send here",
+                        $"Sender: {senderUserId}",
+                        "NotificationService.SendTeamsNotificationAsync"
                     );
-                    Console.WriteLine($"📝 SELF-ASSIGNMENT: Task assigned to self - no notification sent");
                     return;
                 }
 
-                // Send Teams notification using the provided token
-                await SendTeamsNotificationWithTokenAsync(recipientAzureAdId, message, accessToken, senderName);
+                // Find recipient (example uses Sandithi lookup; you probably want recipient by assigned user)
+                var recipientUserId = await GetSandithiUserId(accessToken);
+                if (string.IsNullOrEmpty(recipientUserId))
+                {
+                    _logger.LogWarning("Recipient not found; aborting send");
+                    return;
+                }
+
+                // Prevent self notify
+                if (senderUserId.Equals(recipientUserId, StringComparison.OrdinalIgnoreCase))
+                {
+                    await _errorLogger.LogAsync("Cannot send notification to self", $"Sender: {senderUserId}", "NotificationService.SendTeamsNotificationAsync");
+                    return;
+                }
+
+                // Use the internal method to send the notification
+                await SendTeamsNotificationWithTokenInternalAsync(recipientUserId, message, accessToken, senderUserId);
             }
             catch (Exception ex)
             {
                 await _errorLogger.LogAsync(
-                    $"Error sending notification with token: {ex}",
+                    $"Error sending Teams notification: {ex.Message}",
                     ex.StackTrace ?? "No stack trace",
+                    "NotificationService.SendTeamsNotificationAsync"
+                );
+                _logger.LogError(ex, "SendTeamsNotificationAsync failed");
+            }
+        }
+
+        // Called by controller when it has a user token (explicit OBO)
+        public async Task<NotificationResultDto> SendNotificationWithOBOTokenAsync(string recipientAzureAdId, string message, string userAccessToken, string? senderName = null)
+        {
+            var result = new NotificationResultDto
+            {
+                Method = "SendNotificationWithOBOTokenAsync (OBO Token Exchange)",
+                TokenType = "OBO Exchange"
+            };
+
+            try
+            {
+                await _errorLogger.LogAsync(
+                    "Starting OBO flow for notification",
+                    $"Recipient: {recipientAzureAdId}, Sender: {senderName ?? "Unknown"}, UserTokenPresent: {!string.IsNullOrEmpty(userAccessToken)}",
+                    "NotificationService.SendNotificationWithOBOTokenAsync"
+                );
+
+                result.RecipientId = recipientAzureAdId;
+                result.SenderName = senderName;
+                result.Message = message;
+
+                if (string.IsNullOrEmpty(userAccessToken))
+                {
+                    _logger.LogWarning("No user access token supplied for OBO");
+                    result.Success = false;
+                    result.ErrorDetails = "No user access token supplied for OBO";
+                    return result;
+                }
+
+                if (_graphTokenService == null)
+                {
+                    _logger.LogWarning("GraphTokenService not configured; cannot perform OBO");
+                    result.Success = false;
+                    result.ErrorDetails = "GraphTokenService not configured; cannot perform OBO";
+                    return result;
+                }
+
+                var scopes = new[] { "https://graph.microsoft.com/TeamsActivity.Send" };
+                string? graphToken = null;
+
+                try
+                {
+                    graphToken = await _graphTokenService.GetAccessTokenOnBehalfOfAsync(scopes, userAccessToken);
+                }
+                catch (Exception ex)
+                {
+                    await _errorLogger.LogAsync("OBO exchange failed", ex.Message, "NotificationService.SendNotificationWithOBOTokenAsync");
+                    _logger.LogError(ex, "OBO exchange failed");
+                    result.Success = false;
+                    result.ErrorDetails = $"OBO exchange failed: {ex.Message}";
+                    return result;
+                }
+
+                if (string.IsNullOrEmpty(graphToken))
+                {
+                    _logger.LogWarning("OBO produced no Graph token; skipping notification");
+                    result.Success = false;
+                    result.ErrorDetails = "OBO produced no Graph token";
+                    return result;
+                }
+
+                // Call the actual notification sending
+                var sendResult = await SendTeamsNotificationWithTokenInternalAsync(recipientAzureAdId, message, graphToken, senderName);
+
+                result.Success = sendResult.Success;
+                result.ErrorDetails = sendResult.ErrorDetails;
+                if (sendResult.Success)
+                {
+                    result.Message = $"Notification sent successfully via OBO to {recipientAzureAdId}";
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                await _errorLogger.LogAsync(
+                    $"Error in OBO notification flow: {ex.Message}",
+                    ex.StackTrace ?? "No stack trace",
+                    "NotificationService.SendNotificationWithOBOTokenAsync"
+                );
+                _logger.LogError(ex, "SendNotificationWithOBOTokenAsync failed");
+
+                result.Success = false;
+                result.ErrorDetails = ex.Message;
+                return result;
+            }
+        }
+
+        // Called when the caller provides a Graph token (client-acquired or returned by token-exchange)
+        public async Task<NotificationResultDto> SendNotificationWithTokenAsync(string recipientAzureAdId, string message, string accessToken, string? senderName = null)
+        {
+            var result = new NotificationResultDto
+            {
+                Method = "SendNotificationWithTokenAsync (Direct Graph Token)",
+                TokenType = "Direct Graph Token"
+            };
+
+            try
+            {
+                await _errorLogger.LogAsync(
+                    "Sending notification with provided Graph token",
+                    $"Recipient: {recipientAzureAdId}, Sender: {senderName ?? "Unknown"}",
                     "NotificationService.SendNotificationWithTokenAsync"
                 );
 
-                Console.WriteLine($"❌ DELEGATED NOTIFICATION ERROR: {ex.Message}");
-                Console.WriteLine($"📝 NOTIFICATION (Error Fallback): {message} for user {recipientAzureAdId}");
-            }
-        }
+                result.RecipientId = recipientAzureAdId;
+                result.SenderName = senderName;
+                result.Message = message;
 
-        private async Task TryTeamsActivityFeedNotification(string senderUserId, string recipientUserId, string message, string accessToken)
+                if (string.IsNullOrEmpty(accessToken))
                 {
-                    try
-                    {
-                        // Build a proper Teams deep link URL
-                        var appId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // Backend app from webApplicationInfo
-                        var entityId = "minitasker";
-                        var actualUrl = "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net";
-                        var tabLabel = "MiniTasker";
-
-                        var validTeamsUrl = $"https://teams.microsoft.com/l/entity/{appId}/{entityId}?webUrl={Uri.EscapeDataString(actualUrl)}&label={Uri.EscapeDataString(tabLabel)}";
-
-                        await _errorLogger.LogAsync(
-                            "Sending Teams notification from sender to recipient",
-                            $"From: {senderUserId}, To: {recipientUserId}, Teams URL: {validTeamsUrl}",
-                            "NotificationService.TryTeamsActivityFeedNotification"
-                        );
-
-                        // Create the notification payload
-                        var requestBody = new
-                        {
-                            topic = new
-                            {
-                                source = "text",
-                                value = "Task Notification",
-                                webUrl = validTeamsUrl
-                            },
-                            activityType = "systemDefault",
-                            previewText = new
-                            {
-                                content = message
-                            },
-                            templateParameters = new[]
-                            {
-                                new { name = "systemDefaultText", value = message }
-                            }
-                        };
-
-                        // Serialize the request body
-                        var json = JsonConvert.SerializeObject(requestBody, Formatting.Indented);
-
-                        await _errorLogger.LogAsync(
-                            "Sending Teams Activity Feed notification",
-                            $"URL: https://graph.microsoft.com/v1.0/users/{recipientUserId}/teamwork/sendActivityNotification, Payload: {json}",
-                            "NotificationService.TryTeamsActivityFeedNotification"
-                        );
-
-                        // Create HTTP client and send the request to the RECIPIENT
-                        using var httpClient = new HttpClient();
-                        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                        httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-
-                        var content = new StringContent(json, Encoding.UTF8, "application/json");
-                        var response = await httpClient.PostAsync(
-                            $"https://graph.microsoft.com/v1.0/users/{recipientUserId}/teamwork/sendActivityNotification",
-                            content);
-
-                        var responseContent = await response.Content.ReadAsStringAsync();
-
-                        await _errorLogger.LogAsync(
-                            $"Teams Activity Feed Response: {response.StatusCode}",
-                            $"Response Content: {responseContent}",
-                            "NotificationService.TryTeamsActivityFeedNotification"
-                        );
-
-                        if (response.IsSuccessStatusCode)
-                        {
-                            await _errorLogger.LogAsync(
-                                $"Teams notification sent successfully from {senderUserId} to {recipientUserId}",
-                                $"Message: {message}, Response: {responseContent}",
-                                "NotificationService.TryTeamsActivityFeedNotification"
-                            );
-                            Console.WriteLine($"🚀 TEAMS NOTIFICATION: Successfully sent from {senderUserId} to {recipientUserId}");
-                            Console.WriteLine($"   Message: {message}");
-                        }
-                        else
-                        {
-                            await _errorLogger.LogAsync(
-                                $"Teams Activity Feed failed: {response.StatusCode}",
-                                $"Response: {responseContent}, From: {senderUserId}, To: {recipientUserId}",
-                                "NotificationService.TryTeamsActivityFeedNotification"
-                            );
-                            Console.WriteLine($"❌ TEAMS ACTIVITY FEED ERROR: {response.StatusCode}");
-                            Console.WriteLine($"   Response: {responseContent}");
-                            Console.WriteLine($"   From: {senderUserId}, To: {recipientUserId}");
-
-                            // Verify both users exist
-                            await TrySimpleUserNotification(senderUserId, recipientUserId, message, accessToken);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        await _errorLogger.LogAsync(
-                            $"Exception in Teams Activity Feed notification: {ex.Message}",
-                            ex.StackTrace ?? "No stack trace",
-                            "NotificationService.TryTeamsActivityFeedNotification"
-                        );
-
-                        // Try user verification as fallback
-                        await TrySimpleUserNotification(senderUserId, recipientUserId, message, accessToken);
-                    }
+                    _logger.LogWarning("No access token supplied to SendNotificationWithTokenAsync");
+                    result.Success = false;
+                    result.ErrorDetails = "No access token supplied";
+                    return result;
                 }
 
-        private async Task SendTeamsNotificationWithTokenAsync(string recipientAzureAdId, string message, string accessToken, string? senderName = null)
-        {
-            try
-            {
-                await _errorLogger.LogAsync(
-                    "Sending Teams notification with provided token",
-                    $"Recipient: {recipientAzureAdId}, Message: {message}, Sender: {senderName ?? "Unknown"}",
-                    "NotificationService.SendTeamsNotificationWithTokenAsync"
-                );
+                // Basic validation of token claims (avoid using invalid token)
+                if (!IsLikelyGraphToken(accessToken))
+                {
+                    await _errorLogger.LogAsync("Provided token failed basic Graph validation", $"Token length: {accessToken.Length}", "NotificationService.SendNotificationWithTokenAsync");
+                    _logger.LogWarning("Provided token appears not to be a Graph token");
+                    result.Success = false;
+                    result.ErrorDetails = "Provided token appears not to be a Graph token";
+                    return result;
+                }
 
-                // Verify the recipient user exists
-                //var userExists = await VerifyUserExistsAsync(recipientAzureAdId, accessToken);
-                //if (!userExists)
-                //{
-                //    await _errorLogger.LogAsync(
-                //        $"Recipient user {recipientAzureAdId} not found in Microsoft Graph",
-                //        $"Message: {message}, Sender: {senderName}",
-                //        "NotificationService.SendTeamsNotificationWithTokenAsync"
-                //    );
-                //    Console.WriteLine($"❌ RECIPIENT NOT FOUND: User {recipientAzureAdId} not found");
-                //    Console.WriteLine($"📝 NOTIFICATION (User Not Found): {message} for user {recipientAzureAdId}");
-                //    return;
-                //}
+                // Prevent self notification if token contains sender oid
+                try
+                {
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwt = handler.ReadJwtToken(accessToken);
+                    var senderOid = jwt.Claims.FirstOrDefault(c => c.Type == "oid")?.Value ?? jwt.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
+                    if (!string.IsNullOrEmpty(senderOid) && senderOid.Equals(recipientAzureAdId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        await _errorLogger.LogAsync("Self-notification detected - skipping", $"SenderOid: {senderOid}", "NotificationService.SendNotificationWithTokenAsync");
+                        result.Success = false;
+                        result.ErrorDetails = "Self-notification detected - skipping";
+                        return result;
+                    }
+                }
+                catch
+                {
+                    // ignore parse errors; still attempt send
+                }
 
-                // Send Teams Activity Feed notification
-                await TryTeamsActivityFeedNotificationWithToken(recipientAzureAdId, message, accessToken, senderName);
+                // Call the actual notification sending
+                var sendResult = await SendTeamsNotificationWithTokenInternalAsync(recipientAzureAdId, message, accessToken, senderName);
+
+                result.Success = sendResult.Success;
+                result.ErrorDetails = sendResult.ErrorDetails;
+                if (sendResult.Success)
+                {
+                    result.Message = $"Notification sent successfully to {recipientAzureAdId}";
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
                 await _errorLogger.LogAsync(
-                    $"Error in SendTeamsNotificationWithTokenAsync: {ex}",
+                    $"Error sending notification with token: {ex.Message}",
                     ex.StackTrace ?? "No stack trace",
-                    "NotificationService.SendTeamsNotificationWithTokenAsync"
+                    "NotificationService.SendNotificationWithTokenAsync"
                 );
-                Console.WriteLine($"❌ TEAMS NOTIFICATION ERROR: {ex.Message}");
-                Console.WriteLine($"📝 NOTIFICATION (Error Fallback): {message} for user {recipientAzureAdId}");
+                _logger.LogError(ex, "SendNotificationWithTokenAsync failed");
+
+                result.Success = false;
+                result.ErrorDetails = ex.Message;
+                return result;
             }
         }
 
-        private async Task<bool> VerifyUserExistsAsync(string userId, string accessToken)
+        // Internal method that actually sends the notification and returns success/failure
+        private async Task<(bool Success, string? ErrorDetails)> SendTeamsNotificationWithTokenInternalAsync(string recipientUserId, string message, string accessToken, string? senderName = null)
         {
             try
             {
-                using var httpClient = new HttpClient();
-                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-                httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
-
-                var response = await httpClient.GetAsync($"https://graph.microsoft.com/v1.0/users/{userId}");
-
-                await _errorLogger.LogAsync(
-                    $"User verification response: {response.StatusCode}",
-                    $"User ID: {userId}",
-                    "NotificationService.VerifyUserExistsAsync"
-                );
-
-                return response.IsSuccessStatusCode;
-            }
-            catch (Exception ex)
-            {
-                await _errorLogger.LogAsync(
-                    $"Error verifying user existence: {ex.Message}",
-                    $"User ID: {userId}",
-                    "NotificationService.VerifyUserExistsAsync"
-                );
-                return false;
-            }
-        }
-
-        private async Task TryTeamsActivityFeedNotificationWithToken(string recipientUserId, string message, string accessToken, string? senderName)
-        {
-            try
-            {
-                // Build a proper Teams deep link URL
-                var appId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"; // Backend app from webApplicationInfo
+                var appId = "f6c2a5e9-3bd5-4223-ad2c-618846a668c5";
                 var entityId = "minitasker";
                 var actualUrl = "https://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-01.azurewebsites.net";
                 var tabLabel = "MiniTasker";
 
                 var validTeamsUrl = $"https://teams.microsoft.com/l/entity/{appId}/{entityId}?webUrl={Uri.EscapeDataString(actualUrl)}&label={Uri.EscapeDataString(tabLabel)}";
 
-                // Create a personalized message
-                var notificationMessage = !string.IsNullOrEmpty(senderName)
-                    ? $"{senderName}: {message}"
-                    : message;
+                var notificationMessage = !string.IsNullOrEmpty(senderName) ? $"{senderName}: {message}" : message;
 
                 await _errorLogger.LogAsync(
-                    "Sending Teams notification to assigned user",
-                    $"To: {recipientUserId}, Message: {notificationMessage}, Teams URL: {validTeamsUrl}",
-                    "NotificationService.TryTeamsActivityFeedNotificationWithToken"
+                    "Sending Teams Activity Feed notification",
+                    $"To: {recipientUserId}, Message: {notificationMessage}",
+                    "NotificationService.SendTeamsNotificationWithTokenInternalAsync"
                 );
 
-                // Create the notification payload
                 var requestBody = new
                 {
                     topic = new
@@ -483,26 +328,12 @@ namespace mt_backend.Services
                         webUrl = validTeamsUrl
                     },
                     activityType = "systemDefault",
-                    previewText = new
-                    {
-                        content = notificationMessage
-                    },
-                    templateParameters = new[]
-                    {
-                        new { name = "systemDefaultText", value = notificationMessage }
-                    }
+                    previewText = new { content = notificationMessage },
+                    templateParameters = new[] { new { name = "systemDefaultText", value = notificationMessage } }
                 };
 
-                // Serialize the request body
-                var json = JsonConvert.SerializeObject(requestBody, Formatting.Indented);
+                var json = JsonConvert.SerializeObject(requestBody);
 
-                await _errorLogger.LogAsync(
-                    "Sending Teams Activity Feed notification to assigned user",
-                    $"URL: https://graph.microsoft.com/v1.0/users/{recipientUserId}/teamwork/sendActivityNotification, Payload: {json}",
-                    "NotificationService.TryTeamsActivityFeedNotificationWithToken"
-                );
-
-                // Create HTTP client and send the request to the recipient
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
@@ -517,56 +348,60 @@ namespace mt_backend.Services
                 await _errorLogger.LogAsync(
                     $"Teams Activity Feed Response: {response.StatusCode}",
                     $"Response Content: {responseContent}",
-                    "NotificationService.TryTeamsActivityFeedNotificationWithToken"
+                    "NotificationService.SendTeamsNotificationWithTokenInternalAsync"
                 );
 
-                if (response.IsSuccessStatusCode)
+                if (!response.IsSuccessStatusCode)
                 {
-                    await _errorLogger.LogAsync(
-                        $"Teams notification sent successfully to assigned user {recipientUserId}",
-                        $"Message: {notificationMessage}, Sender: {senderName}",
-                        "NotificationService.TryTeamsActivityFeedNotificationWithToken"
-                    );
-                    Console.WriteLine($"🚀 TEAMS NOTIFICATION: Successfully sent to assigned user {recipientUserId}");
-                    Console.WriteLine($"   Message: {notificationMessage}");
-                    Console.WriteLine($"   Sender: {senderName ?? "Unknown"}");
+                    _logger.LogWarning("Teams Activity Feed failed: {Status} {Content}", response.StatusCode, responseContent);
+                    return (false, $"Teams Activity Feed failed: {response.StatusCode} - {responseContent}");
                 }
-                else
-                {
-                    await _errorLogger.LogAsync(
-                        $"Teams Activity Feed failed for assigned user: {response.StatusCode}",
-                        $"Response: {responseContent}, To: {recipientUserId}",
-                        "NotificationService.TryTeamsActivityFeedNotificationWithToken"
-                    );
-                    Console.WriteLine($"❌ TEAMS ACTIVITY FEED ERROR: {response.StatusCode}");
-                    Console.WriteLine($"   Response: {responseContent}");
-                    Console.WriteLine($"   To: {recipientUserId}");
-                    Console.WriteLine($"📝 NOTIFICATION (Teams Failed): {notificationMessage} for user {recipientUserId}");
-                }
+
+                return (true, null);
             }
             catch (Exception ex)
             {
                 await _errorLogger.LogAsync(
-                    $"Exception in Teams Activity Feed notification with token: {ex.Message}",
+                    $"Exception sending Teams notification with token: {ex.Message}",
                     ex.StackTrace ?? "No stack trace",
-                    "NotificationService.TryTeamsActivityFeedNotificationWithToken"
+                    "NotificationService.SendTeamsNotificationWithTokenInternalAsync"
                 );
-                Console.WriteLine($"❌ TEAMS NOTIFICATION EXCEPTION: {ex.Message}");
-                Console.WriteLine($"📝 NOTIFICATION (Exception Fallback): {message} for user {recipientUserId}");
+                _logger.LogError(ex, "SendTeamsNotificationWithTokenInternalAsync exception");
+                return (false, ex.Message);
             }
-        }   
+        }
+
+        // Helper: look up a specific user by email (kept for your Sandithi flow)
+        private async Task<string?> GetSandithiUserId(string accessToken)
+        {
+            try
+            {
+                var sandithiEmail = "sandithin@perituza.com";
+                using var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
+
+                var emailResponse = await httpClient.GetAsync($"https://graph.microsoft.com/v1.0/users/{Uri.EscapeDataString(sandithiEmail)}");
+                if (emailResponse.IsSuccessStatusCode)
+                {
+                    var emailContent = await emailResponse.Content.ReadAsStringAsync();
+                    dynamic emailUserInfo = JsonConvert.DeserializeObject<dynamic>(emailContent);
+                    return (string?)emailUserInfo?.id;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "GetSandithiUserId failed");
+                return null;
+            }
+        }
 
         private async Task TrySimpleUserNotification(string senderUserId, string recipientUserId, string message, string accessToken)
         {
             try
             {
-                await _errorLogger.LogAsync(
-                    "Attempting simple user information retrieval as fallback",
-                    $"Sender: {senderUserId}, Recipient: {recipientUserId}, Message: {message}",
-                    "NotificationService.TrySimpleUserNotification"
-                );
-
-                // As a fallback, try to get user information to verify the user exists
                 using var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
                 httpClient.DefaultRequestHeaders.Add("Accept", "application/json");
@@ -574,42 +409,35 @@ namespace mt_backend.Services
                 var userResponse = await httpClient.GetAsync($"https://graph.microsoft.com/v1.0/users/{recipientUserId}");
                 var userContent = await userResponse.Content.ReadAsStringAsync();
 
-                await _errorLogger.LogAsync(
-                    $"User lookup response: {userResponse.StatusCode}",
-                    $"User exists check: {userContent}",
-                    "NotificationService.TrySimpleUserNotification"
-                );
-
                 if (userResponse.IsSuccessStatusCode)
                 {
-                    await _errorLogger.LogAsync(
-                        $"User {recipientUserId} exists in Microsoft Graph - notification would be deliverable",
-                        $"Message: {message}, User info retrieved successfully",
-                        "NotificationService.TrySimpleUserNotification"
-                    );
-                    Console.WriteLine($"✅ USER VERIFIED: User {recipientUserId} exists in Microsoft Graph");
-                    Console.WriteLine($"📝 NOTIFICATION (Verified User): {message} for user {recipientUserId}");
-                    Console.WriteLine($"   Note: Teams notifications require proper Teams app registration or alternative delivery method");
+                    await _errorLogger.LogAsync($"User {recipientUserId} exists in Graph", userContent, "NotificationService.TrySimpleUserNotification");
+                    Console.WriteLine($"✅ USER VERIFIED: {recipientUserId}");
                 }
                 else
                 {
-                    await _errorLogger.LogAsync(
-                        $"User {recipientUserId} not found or accessible: {userResponse.StatusCode}",
-                        $"Response: {userContent}",
-                        "NotificationService.TrySimpleUserNotification"
-                    );
-                    Console.WriteLine($"❌ USER NOT FOUND: {userResponse.StatusCode}");
-                    Console.WriteLine($"📝 NOTIFICATION (User Not Found): {message} for user {recipientUserId}");
+                    await _errorLogger.LogAsync($"User lookup failed: {userResponse.StatusCode}", userContent, "NotificationService.TrySimpleUserNotification");
                 }
             }
             catch (Exception ex)
             {
-                await _errorLogger.LogAsync(
-                    $"Exception in simple user notification: {ex.Message}",
-                    ex.StackTrace ?? "No stack trace",
-                    "NotificationService.TrySimpleUserNotification"
-                );
-                Console.WriteLine($"📝 NOTIFICATION (Final Fallback): {message} for user {recipientUserId}");
+                _logger.LogError(ex, "TrySimpleUserNotification failed");
+            }
+        }
+
+        // Basic heuristic: check token has aud claim for Graph or known Graph app id
+        private bool IsLikelyGraphToken(string token)
+        {
+            try
+            {
+                var handler = new JwtSecurityTokenHandler();
+                var jwt = handler.ReadJwtToken(token);
+                var aud = jwt.Claims.FirstOrDefault(c => c.Type == "aud")?.Value ?? string.Empty;
+                return aud.Contains("graph.microsoft.com") || aud == "00000003-0000-0000-c000-000000000000";
+            }
+            catch
+            {
+                return false;
             }
         }
     }

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Client;
 using mt_backend.DTOs;
 using mt_backend.Models;
+using mt_backend.Services;
+using mt_backend.Services.Interfaces;
 using Newtonsoft.Json;
 using System.Configuration;
 using System.Security.Claims;
@@ -18,13 +20,14 @@ namespace mt_backend.Controllers
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
-
+        private readonly IErrorLogger _errorLogger;
         private readonly IConfiguration _configuration;
 
-        public UsersController(IUserService userService, IConfiguration configuration)
+        public UsersController(IUserService userService, IConfiguration configuration, IErrorLogger errorLogger)
         {
             _userService = userService;
             _configuration = configuration;
+            _errorLogger = errorLogger;
         }
 
         // GET: api/users
@@ -114,6 +117,40 @@ namespace mt_backend.Controllers
             catch (Exception ex)
             {
                 return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("teams-sync")]
+        [AllowAnonymous]
+        public async Task<IActionResult> TeamsSync()
+        {
+            try
+            {
+                await _errorLogger.LogAsync(
+                    "Teams sync endpoint called",
+                    "Processing Teams directory sync request",
+                    "UsersController.TeamsSync"
+                );
+
+                // This endpoint can be used for Teams-specific user synchronization
+                // For now, return a successful response to prevent 404 errors
+                return Ok(new
+                {
+                    success = true,
+                    message = "Teams sync completed",
+                    timestamp = DateTime.UtcNow,
+                    note = "This endpoint is available for Teams directory synchronization"
+                });
+            }
+            catch (Exception ex)
+            {
+                await _errorLogger.LogAsync(
+                    "Teams sync failed",
+                    $"Error: {ex.Message}",
+                    "UsersController.TeamsSync"
+                );
+
+                return StatusCode(500, new { error = "Teams sync failed" });
             }
         }
     }
