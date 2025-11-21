@@ -19,7 +19,7 @@ export const apiScope = "api://app-frontendtodoapp-test-cubtfyddfzfradfx.eastus-
 export const apiRequest = { scopes: [apiScope] };
 
 // NEW: Graph scopes for profile retrieval
-export const graphScopes = ["User.Read"];
+export const graphScopes = ["User.Read", "TeamsActivity.Send"];
 
 // Optional helper to get token (call inside components/hooks)
 import { PublicClientApplication } from "@azure/msal-browser";

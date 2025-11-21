@@ -1,6 +1,7 @@
 import * as microsoftTeams from "@microsoft/teams-js";
 import { ensureTeamsInitialized } from "./teamsInit";
 import { isTeamsDesktop } from "./teams";
+import reportError from "./errorReporter";
 
 /**
  * Unified Teams login for desktop & web (inside Teams client).
@@ -16,6 +17,7 @@ export async function teamsLogin({ timeoutMs = 12000, forceExternal } = {}) {
     await ensureTeamsInitialized();
   } catch (e) {
     console.warn("Teams ensure initialize failed; attempting direct initialize", e);
+     reportError({ message: 'Teams ensure initialize failed; attempting direct initialize', stack: e && e.stack, source: 'teamsAuth' }).catch(() => {});
     try {
       if (microsoftTeams?.app?.initialize) {
         await microsoftTeams.app.initialize();
@@ -51,19 +53,37 @@ export async function teamsLogin({ timeoutMs = 12000, forceExternal } = {}) {
       }), "getAuthToken(silent)");
       if (ssoToken) {
         console.debug("[teamsLogin] Silent SSO succeeded");
+        reportError({ message: '[teamsLogin] Silent SSO succeeded', stack: ssoToken, source: 'teamsAuth' }).catch(() => {});
         return { token: ssoToken, source: "teams-sso" };
       }
     } catch (silentErr) {
       console.debug("Silent Teams SSO getAuthToken failed", silentErr);
+      reportError({ message: 'Silent Teams getAuthToken failed', stack: silentErr && silentErr.stack, source: 'teamsAuth' }).catch(() => {});
     }
   }
 
   // 2. Interactive authenticate popup
   const popupUrl = `${window.location.origin}/teams-auth-start.html`; // Auth helper page
-  const preferExternal = forceExternal || isTeamsDesktop(); // Force external in desktop to avoid blank webview issues
+  // Do NOT force external browser on desktop by default. Only use external when caller explicitly sets forceExternal.
+  let preferExternal = !!forceExternal;
+
+  // Probe the helper page first; if missing, never force external.
+  try {
+    const headResp = await fetch(popupUrl, { method: "HEAD" });
+    if (!headResp.ok) {
+      console.warn("[teamsLogin] Auth helper page not reachable (HEAD):", headResp.status);
+      reportError({ message: 'Auth helper page not reachable (HEAD)', stack: `Status: ${headResp.status}`, source: 'teamsAuth' }).catch(() => {});
+      preferExternal = false;
+    }
+  } catch (probeErr) {
+    console.warn("[teamsLogin] Failed to probe auth helper page:", probeErr);
+    reportError({ message: 'Failed to probe auth helper page', stack: probeErr && probeErr.stack, source: 'teamsAuth' }).catch(() => {});
+    preferExternal = false;
+  }
   if (microsoftTeams?.authentication?.authenticate) {
     try {
       console.debug("[teamsLogin] Starting interactive authenticate", { preferExternal });
+      reportError({ message: 'Starting interactive authenticate', stack: null, source: 'teamsAuth' }).catch(() => {});
       const authResultPromise = microsoftTeams.authentication.authenticate({
         url: popupUrl,
         width: 600,
@@ -90,40 +110,47 @@ export async function teamsLogin({ timeoutMs = 12000, forceExternal } = {}) {
       return { token: result, source: preferExternal ? "teams-authenticate-external" : "teams-authenticate" };
     } catch (interactiveErr) {
       console.error("Teams interactive authenticate failed", interactiveErr);
-      // Retry forcing external browser if supported (electron desktop often needs isExternal)
-      try {
-        console.warn("Retrying Teams authenticate with external flag...");
-        const externalPromise = microsoftTeams.authentication.authenticate({
-          url: popupUrl,
-          width: 800,
-          height: 640,
-          isExternal: true,
-          successCallback: undefined,
-          failureCallback: undefined,
-        });
-        const externalResult = (externalPromise && typeof externalPromise.then === "function")
-          ? await externalPromise
-          : await new Promise((resolve, reject) => {
-              try {
-                microsoftTeams.authentication.authenticate({
-                  url: popupUrl,
-                  width: 800,
-                  height: 640,
-                  isExternal: true,
-                  successCallback: r => resolve(r),
-                  failureCallback: e => reject(new Error(e || "External authenticate failed")),
-                });
-              } catch (extErr) { reject(extErr); }
-            });
-        return { token: externalResult, source: "teams-authenticate-external" };
-      } catch (externalErr) {
-        console.error("External Teams authenticate also failed", externalErr);
+      reportError({ message: 'Teams interactive authenticate failed', stack: interactiveErr && interactiveErr.stack, source: 'teamsAuth' }).catch(() => {});
+      // Do not automatically retry by forcing external browser unless explicitly requested.
+      if (preferExternal) {
+        try {
+          console.warn("Attempting external authenticate because forceExternal was requested...");
+          reportError({ message: 'Attempting external authenticate because forceExternal was requested', stack: null, source: 'teamsAuth' }).catch(() => {});
+          const externalPromise = microsoftTeams.authentication.authenticate({
+            url: popupUrl,
+            width: 800,
+            height: 640,
+            isExternal: true,
+            successCallback: undefined,
+            failureCallback: undefined,
+          });
+          const externalResult = (externalPromise && typeof externalPromise.then === "function")
+            ? await withTimeout(externalPromise, "authenticate-external")
+            : await withTimeout(new Promise((resolve, reject) => {
+                try {
+                  microsoftTeams.authentication.authenticate({
+                    url: popupUrl,
+                    width: 800,
+                    height: 640,
+                    isExternal: true,
+                    successCallback: r => resolve(r),
+                    failureCallback: e => reject(new Error(e || "External authenticate failed")),
+                  });
+                } catch (extErr) { reject(extErr); }
+              }), "authenticate-external");
+          return { token: externalResult, source: "teams-authenticate-external" };
+        } catch (externalErr) {
+          console.error("External Teams authenticate also failed", externalErr);
+          reportError({ message: 'External Teams authenticate also failed', stack: externalErr && externalErr.stack, source: 'teamsAuth' }).catch(() => {});
+        }
       }
       throw interactiveErr;
     }
   }
 
-  throw new Error("Teams authentication APIs not available in this host (no getAuthToken/authenticate)");
+  const apiErr = new Error("Teams authentication APIs not available in this host (no getAuthToken/authenticate)");
+  reportError({ message: apiErr.message, stack: apiErr.stack, source: 'teamsAuth' }).catch(() => {});
+  throw apiErr;
 }
 
 /**
@@ -133,7 +160,9 @@ export async function teamsLogin({ timeoutMs = 12000, forceExternal } = {}) {
 export async function getTeamsSsoToken() {
   await ensureTeamsInitialized();
   if (!microsoftTeams?.authentication?.getAuthToken) {
-    throw new Error("Teams getAuthToken API unavailable");
+    const err = new Error("Teams getAuthToken API unavailable");
+    reportError({ message: 'getTeamsSsoToken: API unavailable', stack: err.stack, source: 'teamsAuth' }).catch(() => {});
+    throw err;
   }
 
   // Silent attempt
@@ -147,6 +176,7 @@ export async function getTeamsSsoToken() {
     });
   } catch (silentErr) {
     console.debug("Silent Teams SSO failed:", silentErr.message);
+    reportError({ message: 'getTeamsSsoToken: silent failed', stack: silentErr && silentErr.stack, source: 'teamsAuth' }).catch(() => {});
   }
 
   // Prompted attempt
@@ -160,6 +190,7 @@ export async function getTeamsSsoToken() {
     });
   } catch (promptErr) {
     console.debug("Prompted Teams SSO failed:", promptErr.message);
+    reportError({ message: 'getTeamsSsoToken: prompt failed', stack: promptErr && promptErr.stack, source: 'teamsAuth' }).catch(() => {});
   }
 
   // Final minimal interactive authenticate external
@@ -177,9 +208,12 @@ export async function getTeamsSsoToken() {
       });
     } catch (extErr) {
       console.error("External authenticate failed:", extErr);
+      reportError({ message: 'getTeamsSsoToken: external authenticate failed', stack: extErr && extErr.stack, source: 'teamsAuth' }).catch(() => {});
     }
   }
-  throw new Error("Teams SSO token acquisition failed (all methods).");
+  const finalErr = new Error("Teams SSO token acquisition failed (all methods).");
+  reportError({ message: finalErr.message, stack: finalErr.stack, source: 'teamsAuth' }).catch(() => {});
+  throw finalErr;
 }
 
 export default teamsLogin;

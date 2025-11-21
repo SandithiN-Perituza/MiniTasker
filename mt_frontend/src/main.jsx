@@ -26,6 +26,7 @@ import App from "./App";
 import { UserProvider } from "./context/UserProvider";
 import { MsalProvider } from "@azure/msal-react";
 import { msalInstance, ensureMsalInitialized } from "./authConfig";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // NEW: wait for msal initialize before rendering
 (async () => {
@@ -34,7 +35,9 @@ import { msalInstance, ensureMsalInitialized } from "./authConfig";
     <StrictMode>
       <MsalProvider instance={msalInstance}>
         <UserProvider>
-          <App />
+          <ErrorBoundary>
+            <App />
+          </ErrorBoundary>
         </UserProvider>
       </MsalProvider>
     </StrictMode>,

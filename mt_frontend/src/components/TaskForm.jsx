@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { createTask, createTaskWithNotification, updateTask, fetchUsers, getUserAzureAdId } from "../api/api";
+import { createTask, createTaskWithNotification, updateTask, fetchUsers, getUserAzureAdId, syncTeamsDirectory } from "../api/api";
+import { isInTeams } from "../utils/teams";
 import { PiWarningCircleBold } from 'react-icons/pi';
 
 const statusOptions = [
@@ -20,10 +21,33 @@ export default function TaskForm({ onSuccess, task }) {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    fetchUsers().then((fetchedUsers) => {
-      console.log("📋 Fetched users:", fetchedUsers);
-      setUsers(fetchedUsers);
-    });
+    let mounted = true;
+    (async () => {
+      try {
+        const fetchedUsers = await fetchUsers();
+        if (!mounted) return;
+        console.log("📋 Fetched users:", fetchedUsers);
+        setUsers(fetchedUsers);
+
+        // If inside Teams and no user has an Azure AD id, try directory sync then refetch
+        const anyHasAzure = (fetchedUsers || []).some(u => u.azureAdId || u.azureAdObjectId);
+        if (isInTeams() && !anyHasAzure) {
+          console.log("No users have Azure AD ids; attempting backend teams directory sync...");
+          try {
+            await syncTeamsDirectory();
+            const refetched = await fetchUsers();
+            if (!mounted) return;
+            console.log("📋 Refetched users after teams-sync:", refetched);
+            setUsers(refetched);
+          } catch (syncErr) {
+            console.debug("Directory sync failed (non-blocking):", syncErr.message || syncErr);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch users:", err);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -92,30 +116,52 @@ export default function TaskForm({ onSuccess, task }) {
         const assignedUserId = parseInt(form.assignedTo);
         
         console.log("🔍 Getting Azure AD ID for assigned user:", assignedUserId);
-        
-        try {
-          // Call the new backend API to get Azure AD ID
-          const userDetails = await getUserAzureAdId(assignedUserId);
-          
-          console.log("✅ Got user details from backend:", userDetails);
-          
-          if (userDetails.hasAzureAdId && userDetails.azureAdId) {
-            try {
-              await createTaskWithNotification(payload, userDetails.azureAdId);
-            } catch (notifyErr) {
-              console.warn("Notification path failed, fallback to plain create:", notifyErr.message);
+
+        // First, try to find azureAdId locally (fetched users list)
+        const localUser = users.find(u => Number(u.id) === Number(assignedUserId));
+        if (localUser && (localUser.azureAdId || localUser.azureAdObjectId)) {
+          const azureId = localUser.azureAdId || localUser.azureAdObjectId;
+          try {
+            await createTaskWithNotification(payload, azureId);
+            console.log("✅ Task created with notification support (local azureAdId)");
+          } catch (notifyErr) {
+            console.warn("Notification path failed, fallback to plain create:", notifyErr.message);
+            await createTask(payload);
+            alert(`Task created successfully, but notification failed: ${notifyErr.message}`);
+          }
+        } else {
+          try {
+            // Call the backend API to get Azure AD ID as a fallback
+            const userDetails = await getUserAzureAdId(assignedUserId);
+            console.log("✅ Got user details from backend:", userDetails);
+            if (userDetails.hasAzureAdId && userDetails.azureAdId) {
+              try {
+                console.log("🔍creating task with notification payload",payload);
+                console.log("🔔 Creating task with notification for Azure AD ID:", userDetails.azureAdId);
+                const response = await createTaskWithNotification(payload, userDetails.azureAdId);
+                console.log("✅ Task created with notification support (backend resolved)",response,payload, userDetails.azureAdId);
+              } catch (notifyErr) {
+                console.warn("Notification path failed, fallback to plain create:", notifyErr.message);
+                await createTask(payload);
+                alert(`Task created successfully, but notification failed: ${notifyErr.message}`);
+              }
+            } else {
+              console.warn("⚠️ Assigned user has no Azure AD ID, creating task without notification");
+              alert(`Warning: ${userDetails.name} hasn't logged in via Microsoft yet, so they won't receive a Teams notification.`);
               await createTask(payload);
             }
-          } else {
-            console.warn("⚠️ Assigned user has no Azure AD ID, creating task without notification");
-            alert(`Warning: ${userDetails.name} hasn't logged in via Microsoft yet, so they won't receive a Teams notification.`);
-            await createTask(payload);
+          } catch (azureIdError) {
+            console.error("❌ Failed to get Azure AD ID:", azureIdError);
+            console.warn("⚠️ Falling back to enhanced notification method with backend resolution");
+            try {
+              await createTaskWithNotification(payload, '');
+              console.log("✅ Task created with backend Azure AD ID resolution (fallback)");
+            } catch (backendFallbackError) {
+              console.error("❌ Backend fallback also failed:", backendFallbackError);
+              alert("Could not retrieve user information for notifications. Creating task without notification.");
+              await createTask(payload);
+            }
           }
-        } catch (azureIdError) {
-          console.error("❌ Failed to get Azure AD ID:", azureIdError);
-          console.warn("⚠️ Falling back to regular task creation");
-          alert("Could not retrieve user information for notifications. Creating task without notification.");
-          await createTask(payload);
         }
       }
 

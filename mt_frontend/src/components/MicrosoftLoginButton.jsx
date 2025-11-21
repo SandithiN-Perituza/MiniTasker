@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
 import UserContext from "../context/UserContext";
-import { isInTeams } from "../utils/teams";
+import { isInTeams, isTeamsDesktop } from "../utils/teams";
 import { unifiedMicrosoftLogin } from "../api/api";
 import { getTeamsSsoToken } from "../utils/teamsAuth";
 
@@ -17,8 +17,33 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
     setLoading(true);
     try {
       if (isInTeams() && window.microsoftTeams) {
-        // Use unified teamsLogin helper (handles silent + interactive)
-        const token = await getTeamsSsoToken();
+        // Use Teams SSO helper but guard with a timeout to avoid hanging
+        const timeoutMs = 15000;
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Teams SSO timed out')), timeoutMs));
+
+        let token;
+        try {
+          token = await Promise.race([getTeamsSsoToken(), timeoutPromise]);
+        } catch (teamsErr) {
+          console.error('Teams SSO failed or timed out:', teamsErr);
+          // If desktop client likely cannot perform in-app auth, surface error and avoid silent failure
+          if (isTeamsDesktop()) {
+            const msg = 'Teams authentication failed or timed out in the desktop client. Please try signing in using the web app or contact your administrator.';
+            try { window.alert(msg); } catch (e) {}
+            onError && onError(teamsErr);
+            return;
+          }
+
+          // For webviews (non-desktop) attempt browser MSAL fallback
+          console.warn('Falling back to browser MSAL flow after Teams SSO failure');
+          const userData = await loginWithMicrosoft();
+          if (userData) {
+            login && login(userData);
+            onSuccess && onSuccess(userData);
+            return userData;
+          }
+        }
+
         const savedUser = await unifiedMicrosoftLogin(token);
         login && login(savedUser);
         onSuccess && onSuccess(savedUser);

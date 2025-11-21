@@ -6,75 +6,47 @@ const API_URL = "https://app-frontbackendtodoapp-test-ahepeja6fadmcuhb.eastus-01
 import { msalInstance, ensureMsalInitialized, apiScope, graphScopes } from "../authConfig";
 import { getCurrentUser } from "../utils/auth";
 import { isInTeams } from "../utils/teams";
+import { getTeamsSsoToken } from "../utils/teamsAuth";
+import reportError from "../utils/errorReporter";
 
-// export async function getAuthToken() {
-//   try {
-//     // First try to get active account
-//     let account = msalInstance.getActiveAccount();
-    
-//     // If no active account, try to get any available account
-//     if (!account) {
-//       const accounts = msalInstance.getAllAccounts();
-//       if (accounts.length > 0) {
-//         account = accounts[0];
-//         msalInstance.setActiveAccount(account);
-//         console.log("Set active account:", account.username);
-//       } else {
-//         console.log("No MSAL accounts found");
-//         return null;
-//       }
-//     }
-
-//     console.log("Using account for token:", account.username);
-
-//     // Try silent token acquisition
-//     const response = await msalInstance.acquireTokenSilent({
-//       scopes: ["User.Read"],
-//       account: account,
-//     });
-
-//     console.log("✅ Successfully acquired MSAL token");
-//     return response.accessToken;
-//   } catch (error) {
-//     console.error("❌ Token acquisition failed:", error);
-    
-//     // If silent acquisition fails, try popup (optional)
-//     try {
-//       console.log("Trying popup token acquisition...");
-//       const response = await msalInstance.acquireTokenPopup({
-//         scopes: ["User.Read"],
-//       });
-      
-//       console.log("✅ Successfully acquired token via popup");
-//       return response.accessToken;
-//     } catch (popupError) {
-//       console.error("❌ Popup token acquisition also failed:", popupError);
-//       return null;
-//     }
-//   }
-// }
 export async function getAuthToken() {
   console.log("Attempting to get authentication token...");
-  
   try {
+    console.log("🔍 Starting token acquisition process");
+    console.log("teams: isInTeams =", isInTeams());
+    // If running inside Teams, prefer the Teams SSO token (suitable for backend SSO)
+    if (isInTeams()) {
+      try {
+        console.log("In Teams: requesting Teams SSO token...");
+        const ssoToken = await getTeamsSsoToken();
+        if (ssoToken) {
+          console.log("✅ Acquired Teams SSO token");
+          return ssoToken;
+        }
+      } catch (teamsErr) {
+        console.warn("Teams SSO acquisition failed, falling back to MSAL path:", teamsErr?.message || teamsErr);
+      }
+    }
+
     // Ensure MSAL is initialized
     await ensureMsalInitialized();
-    
+
     const accounts = msalInstance.getAllAccounts();
     console.log("Available accounts:", accounts.length);
-    
+
     if (accounts.length === 0) {
       console.warn("No MSAL account; returning null token");
       return null;
     }
-    
+
     const tokenRequest = { scopes: [apiScope], account: accounts[0], forceRefresh: false };
-    
+
+    console.log("Token request:", tokenRequest);
     try {
       // Try silent token acquisition first
       const response = await msalInstance.acquireTokenSilent(tokenRequest);
       console.log("✅ Successfully acquired MSAL token (silent)");
-      
+
       // Debug: show token claims
       const tokenPayload = JSON.parse(atob(response.accessToken.split('.')[1]));
       console.log("Token claims:", {
@@ -83,15 +55,15 @@ export async function getAuthToken() {
         sub: tokenPayload.sub,
         upn: tokenPayload.upn || tokenPayload.preferred_username
       });
-      
+
       return response.accessToken;
     } catch (silentError) {
       console.log("Silent token acquisition failed, trying popup...", silentError);
-      
+
       // Fallback to popup with same simple scope
       const response = await msalInstance.acquireTokenPopup(tokenRequest);
       console.log("✅ Successfully acquired MSAL token (popup)");
-      
+
       // Debug: show token claims
       const tokenPayload = JSON.parse(atob(response.accessToken.split('.')[1]));
       console.log("Token claims:", {
@@ -100,13 +72,12 @@ export async function getAuthToken() {
         sub: tokenPayload.sub,
         upn: tokenPayload.upn || tokenPayload.preferred_username
       });
-      
+
       return response.accessToken;
     }
-    
   } catch (error) {
     console.error("❌ Failed to get authentication token:", error);
-    throw new Error(`Token acquisition failed: ${error.message}`);
+    throw new Error(`Token acquisition failed: ${error?.message || error}`);
   }
 }
 
@@ -189,9 +160,24 @@ export async function sendTestNotification() {
     // Get response text first to handle both JSON and plain text responses
     const responseText = await response.text();
     console.log("Response body:", responseText);
-
+    let parsedResult = null;
+    try { parsedResult = responseText ? JSON.parse(responseText) : null; } catch { parsedResult = null; }
+    console.log("Response body:", responseText);
+    if (parsedResult) {
+      console.log("🔔 NotificationResultDto:", {
+      success: parsedResult.Success ?? parsedResult.success,
+      method: parsedResult.Method ?? parsedResult.method,
+      message: parsedResult.Message ?? parsedResult.message,
+      recipientId: parsedResult.RecipientId ?? parsedResult.recipientId,
+      senderName: parsedResult.SenderName ?? parsedResult.senderName,
+      tokenType: parsedResult.TokenType ?? parsedResult.tokenType,
+      errorDetails: parsedResult.ErrorDetails ?? parsedResult.errorDetails,
+      timestamp: parsedResult.Timestamp ?? parsedResult.timestamp,
+      });
+    }
     if (!response.ok) {
       console.error("❌ Error response:", responseText);
+      console.error("❌ Error response:", responseText, parsedResult || {});
       
       if (response.status === 401) {
         throw new Error("Authentication failed. Your Azure AD token is not valid for this API. Please check your backend authentication configuration.");
@@ -258,74 +244,309 @@ export async function fetchUserTasks() {
 }
 
 export async function getGraphToken() {
-  // Vacation Tracker style: rely on backend OBO when in Teams
-  if (isInTeams()) {
-    console.log("In Teams context – skipping front-end Graph token fetch (backend OBO expected).");
-    return null;
-  }
-  
   console.log("🔍 Acquiring Microsoft Graph token...");
-  
+
   try {
     await ensureMsalInitialized();
-    
-    const accounts = msalInstance.getAllAccounts();
-    if (!accounts.length) return null;
-    const req = { scopes: graphScopes, account: accounts[0] };
-    try {
-      const r = await msalInstance.acquireTokenSilent(req);
-      return r.accessToken;
-    } catch {
-      try { const r2 = await msalInstance.acquireTokenPopup(req); return r2.accessToken; }
-      catch { return null; }
+
+    // 1) If inside Teams, try backend OBO exchange using Teams SSO token
+    if (isInTeams()) {
+      try {
+        const ssoToken = await getTeamsSsoToken();
+        if (ssoToken) {
+          try {
+            console.debug("Calling backend microsoftSsoAuth for OBO exchange");
+            const resp = await microsoftSsoAuth(ssoToken);
+            const candidate = resp?.graphToken || resp?.accessToken || resp?.token || null;
+            if (candidate) {
+              console.debug("Received Graph token from backend via SSO/OBO");
+              return candidate;
+            }
+            console.debug("Backend returned no graph token in response from microsoftSsoAuth", resp);
+
+            // Secondary attempt: try the regular microsoftAuth endpoint with the same token
+            try {
+              console.debug("Attempting fallback to microsoftAuth endpoint with SSO token");
+              const fb = await microsoftAuth(ssoToken);
+              const fbCandidate = fb?.graphToken || fb?.accessToken || fb?.token || null;
+              if (fbCandidate) {
+                console.debug("Fallback microsoftAuth returned Graph token");
+                return fbCandidate;
+              }
+              console.debug("Fallback microsoftAuth returned no Graph token", fb);
+            } catch (fbErr) {
+              console.debug("Fallback microsoftAuth failed:", fbErr?.message || fbErr);
+            }
+          } catch (e) {
+            console.debug("microsoftSsoAuth did not return graph token or failed:", e?.message || e);
+          }
+        } else {
+          console.debug("No Teams SSO token available from getTeamsSsoToken");
+        }
+      } catch (teamsErr) {
+        console.debug("Teams SSO path failed or unavailable:", teamsErr?.message || teamsErr);
+      }
+      // Fall through to MSAL flows after trying backend OBO
     }
-  } catch {
+
+    // 2) Try MSAL silent acquisition (browser flows)
+    const accounts = msalInstance.getAllAccounts() || [];
+    console.log("Available MSAL accounts:", accounts.length);
+
+    if (accounts.length > 0) {
+      const account = accounts[0];
+      console.log("📋 Using account for Graph token:", account.username || account.homeAccountId || account.localAccountId);
+      const tokenRequest = { scopes: graphScopes, account, forceRefresh: false };
+      try {
+        console.log("🔄 Attempting silent Graph token acquisition...");
+        const response = await msalInstance.acquireTokenSilent(tokenRequest);
+        console.log("✅ Successfully acquired Graph token (silent)");
+        return response.accessToken;
+      } catch (silentError) {
+        console.log("⚠️ Silent Graph token acquisition failed:", silentError?.message || silentError);
+        try { reportError({ message: 'Silent Graph token acquisition failed', stack: silentError?.stack || String(silentError), source: 'getGraphToken' }); } catch {}
+        console.log("Silent graph token acquisition failed and interactive popup is disabled here. Falling through to backend fallback.");
+      }
+    } else {
+      console.log("No MSAL accounts available for silent acquisition; will try backend fallback.");
+    }
+
+    // 3) Final fallback: ask backend to exchange whatever frontend auth token we can get
+    try {
+      console.debug("Attempting backend exchange using frontend auth token...");
+      const frontendAuth = await getAuthToken();
+      if (frontendAuth) {
+        try {
+          const backendResp = await microsoftSsoAuth(frontendAuth);
+          const backendCandidate = backendResp?.graphToken || backendResp?.accessToken || backendResp?.token || null;
+          if (backendCandidate) {
+            console.debug("Received Graph token from backend via fallback exchange");
+            return backendCandidate;
+          }
+          console.debug("Backend fallback exchange returned no graph token", backendResp);
+        } catch (backendErr) {
+          console.debug("Backend fallback exchange failed:", backendErr?.message || backendErr);
+        }
+      } else {
+        console.debug("No frontend auth token available for backend fallback");
+      }
+    } catch (err) {
+      console.debug("Fallback backend exchange errored:", err?.message || err);
+    }
+
+    // Nothing worked
+    console.error("❌ No Graph token could be acquired (MSAL silent, Teams OBO, or backend fallback)");
+    return null;
+  } catch (error) {
+    console.error("❌ Graph token acquisition failed:", error?.message || error);
+    try { reportError({ message: "Graph token acquisition failed", stack: error?.stack || String(error), source: 'getGraphToken' }); } catch {}
     return null;
   }
 }
+// export async function getGraphToken() {
+//   console.log("🔍 Acquiring Microsoft Graph token...");
 
+//   try {
+//     await ensureMsalInitialized();
+
+//     // First: attempt to get a Graph token directly from MSAL (this will have frontend app id)
+//     const accounts = msalInstance.getAllAccounts() || [];
+//     console.log("Available MSAL accounts:", accounts.length);
+
+//     const teamsScope = "https://graph.microsoft.com/TeamsActivity.Send";
+//     if (accounts.length > 0) {
+//       const account = accounts[0];
+//       console.log("📋 Using account for direct Graph token:", account.username || account.homeAccountId || account.localAccountId);
+
+//       // Request Graph scope directly so token is issued to the frontend app (prevents backend appid showing up)
+//       const tokenRequest = { scopes: [teamsScope], account, forceRefresh: false };
+//       try {
+//         console.log("🔄 Attempting silent Graph token acquisition (TeamsActivity.Send)...");
+//         const response = await msalInstance.acquireTokenSilent(tokenRequest);
+//         console.log("✅ Successfully acquired Graph token (silent) from MSAL");
+//         return response.accessToken;
+//       } catch (silentError) {
+//         console.warn("Silent Graph token acquisition failed, trying interactive popup...", silentError?.message || silentError);
+//         try {
+//           const response = await msalInstance.acquireTokenPopup(tokenRequest);
+//           console.log("✅ Successfully acquired Graph token (popup) from MSAL");
+//           return response.accessToken;
+//         } catch (popupErr) {
+//           console.warn("Interactive Graph token acquisition also failed:", popupErr?.message || popupErr);
+//           // fall through to other fallback mechanisms below
+//         }
+//       }
+//     } else {
+//       console.log("No MSAL accounts available for direct Graph acquisition; will try fallback paths.");
+//     }
+
+//     // If running inside Teams, try backend OBO exchange using Teams SSO token (legacy fallback)
+//     if (isInTeams()) {
+//       try {
+//         console.debug("In Teams: attempting backend OBO exchange using Teams SSO token...");
+//         const ssoToken = await getTeamsSsoToken();
+//         if (ssoToken) {
+//           const resp = await microsoftSsoAuth(ssoToken);
+//           const candidate = resp?.graphToken || resp?.accessToken || resp?.token || null;
+//           if (candidate) {
+//             console.debug("Received Graph token from backend via SSO/OBO");
+//             return candidate;
+//           }
+//           console.debug("Backend returned no graph token in microsoftSsoAuth response", resp);
+//         } else {
+//           console.debug("No Teams SSO token available from getTeamsSsoToken");
+//         }
+//       } catch (teamsErr) {
+//         console.debug("Teams SSO path failed or unavailable:", teamsErr?.message || teamsErr);
+//       }
+//       // fall through to next fallback
+//     }
+
+//     // Final fallback: ask backend to exchange frontend backend token for a Graph token
+//     try {
+//       console.debug("Attempting backend exchange using frontend auth token...");
+//       const frontendAuth = await getAuthToken();
+//       if (frontendAuth) {
+//         try {
+//           const backendResp = await microsoftSsoAuth(frontendAuth);
+//           const backendCandidate = backendResp?.graphToken || backendResp?.accessToken || backendResp?.token || null;
+//           if (backendCandidate) {
+//             console.debug("Received Graph token from backend via fallback exchange");
+//             return backendCandidate;
+//           }
+//           console.debug("Backend fallback exchange returned no graph token", backendResp);
+//         } catch (backendErr) {
+//           console.debug("Backend fallback exchange failed:", backendErr?.message || backendErr);
+//         }
+//       } else {
+//         console.debug("No frontend auth token available for backend fallback");
+//       }
+//     } catch (err) {
+//       console.debug("Fallback backend exchange errored:", err?.message || err);
+//     }
+
+//     console.error("❌ No Graph token could be acquired (MSAL direct, Teams OBO, or backend fallback)");
+//     return null;
+//   } catch (error) {
+//     console.error("❌ Graph token acquisition failed:", error?.message || error);
+//     try { reportError({ message: "Graph token acquisition failed", stack: error?.stack || String(error), source: 'getGraphToken' }); } catch {}
+//     return null;
+//   }
+// }
 // Create a new task
 // api/taskApi.js or wherever your createTask function is
+// Create a new task with notification support
 export async function createTask(task) {
   console.log("🚀 Creating task with notification support...");
 
-  let backendToken = await getAuthToken(); // may be null now
+  let backendToken = await getAuthToken();
   let graphToken = await getGraphToken();
+  
   if (!backendToken) {
-    console.warn("Proceeding without backend token; notification will be skipped");
+    console.warn("No backend token available, creating task without notification");
+    
+    // Simple request without notification when no token
+    const simpleRequestBody = {
+      title: task.title,
+      description: task.description,
+      assignedTo: task.assignedTo,
+      dueDate: task.dueDate,
+      actorName: "Unknown" // Add actorName for simple requests
+    };
+
+    try {
+      const response = await fetch(`${API_URL}/tasks`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(simpleRequestBody)
+      });
+
+      const responseText = await response.text();
+      let parsed = null;
+      try { 
+        parsed = responseText ? JSON.parse(responseText) : null; 
+      } catch { 
+        parsed = null; 
+      }
+
+      if (!response.ok) {
+        console.error("❌ Task creation failed:", response.status, responseText);
+        throw new Error(`Task creation failed: ${response.status} - ${responseText}`);
+      }
+
+      const result = parsed ?? { message: responseText, success: true };
+      console.log("✅ Task created successfully (no notification):", result);
+      return result;
+    } catch (fetchError) {
+      console.error("❌ Task creation request failed:", fetchError);
+      throw fetchError;
+    }
   }
 
-  // Minimal body if token missing
-  const requestBody = backendToken ? {
-    message: "Test notification from MiniTasker - Task Assignment",
-    userId: azureUserId,
-    userEmail: userEmail,
-    userName: userName,
-    timestamp: new Date().toISOString(),
-    graphToken: graphToken,
-    task: {
-      title: task.title,
-      description: task.description,
-      assignedTo: task.assignedTo,
-      dueDate: task.dueDate
+  // Extract user information from token when we have one
+  const currentUser = getCurrentUser();
+  let azureUserId, userEmail, userName;
+
+  try {
+    const tokenPayload = JSON.parse(atob(backendToken.split('.')[1]));
+    azureUserId = tokenPayload.oid || tokenPayload.sub;
+    userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
+    userName = tokenPayload.name;
+    
+    console.log("Token payload:", {
+      azureUserId,
+      userEmail,
+      userName,
+      audience: tokenPayload.aud
+    });
+  } catch (error) {
+    console.error("Failed to parse token:", error);
+    azureUserId = currentUser?.id?.toString();
+    userEmail = currentUser?.email;
+    userName = currentUser?.name;
+  }
+
+  // Get assigned user's Azure AD ID if available
+  let assignedUserAzureAdId = null;
+  if (task.assignedTo) {
+    try {
+      const userAzureAdResult = await getUserAzureAdId(task.assignedTo);
+      assignedUserAzureAdId = userAzureAdResult?.azureAdId || null;
+      console.log("📋 Assigned user Azure AD ID:", assignedUserAzureAdId);
+    } catch (error) {
+      console.warn("Could not get assigned user's Azure AD ID:", error);
     }
-  } : {
-    task: {
+  }
+
+  // ✅ FIXED: Use the correct format that matches CreateTaskWithNotificationRequestDto
+  const notificationRequestBody = {
+    task: {  // ✅ This triggers the notification request path in backend
       title: task.title,
       description: task.description,
-      assignedTo: task.assignedTo,
+      assignedTo: parseInt(task.assignedTo), // Ensure it's a number
       dueDate: task.dueDate
     },
-    notificationSkipped: true
+    message: `You have been assigned a new task: '${task.title}'`,
+    userId: azureUserId,           // Creator's Azure AD ID
+    userEmail: userEmail,
+    userName: userName,
+    assignedUserAzureAdId: assignedUserAzureAdId, // Assigned user's Azure AD ID
+    authToken: backendToken,       // Backend auth token (optional, already in header)
+    graphToken: graphToken,        // Graph API token
+    timestamp: new Date().toISOString()
   };
 
-  console.log("📤 Sending task creation request:", {
+  console.log("📤 Sending notification request:", {
     url: `${API_URL}/tasks`,
-    taskData: requestBody.task,
+    taskData: notificationRequestBody.task,
     userInfo: {
-      userId: requestBody.userId,
-      userName: requestBody.userName
-    }
+      userId: notificationRequestBody.userId,
+      userName: notificationRequestBody.userName,
+      assignedUserAzureAdId: notificationRequestBody.assignedUserAzureAdId
+    },
+    hasGraphToken: !!graphToken
   });
 
   try {
@@ -333,24 +554,57 @@ export async function createTask(task) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(backendToken ? { Authorization: `Bearer ${backendToken}` } : {})
+        "Authorization": `Bearer ${backendToken}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(notificationRequestBody)
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Task creation failed:", response.status, errorText);
-      throw new Error(`Task creation failed: ${response.status} - ${errorText}`);
+    const responseText = await response.text();
+    let parsed = null;
+    try { 
+      parsed = responseText ? JSON.parse(responseText) : null; 
+    } catch { 
+      parsed = null; 
     }
 
-    const result = await response.json();
+    if (!response.ok) {
+      console.error("❌ Task creation failed:", response.status, responseText);
+      throw new Error(`Task creation failed: ${response.status} - ${responseText}`);
+    }
+
+    const result = parsed ?? { message: responseText, success: true };
     console.log("✅ Task created successfully:", result);
     
-    if (result.notificationSent) {
-      console.log("🔔 Notification sent to assigned user!");
-    } else {
-      console.log("⚠️ Task created but notification failed");
+    // ✅ ENHANCED: Log the detailed notification result from backend
+    if (result.notification) {
+      console.log("🔔 NotificationResultDto (createTask):", {
+        success: result.notification.success,
+        method: result.notification.method,
+        message: result.notification.message,
+        recipientId: result.notification.recipientId,
+        senderName: result.notification.senderName,
+        tokenType: result.notification.tokenType,
+        errorDetails: result.notification.errorDetails,
+        timestamp: result.notification.timestamp,
+      });
+
+      if (result.notification.success) {
+        console.log("🔔 Notification sent to assigned user successfully!");
+        console.log(`📋 Method used: ${result.notification.method}`);
+        console.log(`🎯 Token type: ${result.notification.tokenType}`);
+      } else {
+        console.log("⚠️ Task created but notification failed:");
+        console.log(`❌ Error: ${result.notification.errorDetails || result.notification.message}`);
+      }
+    }
+
+    // Log metadata
+    if (result.metadata) {
+      console.log("📊 Request metadata:", {
+        requestType: result.metadata.requestType,
+        notificationAttempted: result.metadata.notificationAttempted,
+        taskCreatedAt: result.metadata.taskCreatedAt
+      });
     }
 
     return result;
@@ -379,12 +633,246 @@ export async function getUserAzureAdId(userId) {
 }
 
 // In your task creation function
+// export async function createTaskWithNotification(taskData, assignedUserAzureAdId) {
+//   console.log("🔔 Creating task with notification...");
+//   console.log("📋 Task data:", taskData);
+//   console.log("👤 Assigned user Azure AD ID:", assignedUserAzureAdId);
+
+//   const currentUser = getCurrentUser();
+//   console.log("Current user:", currentUser);
+//   if (!currentUser) {
+//     throw new Error("Please log in to create tasks");
+//   }
+
+//   let token = await getAuthToken();
+//   let graphT = await getGraphToken();
+//   if (!token) {
+//     console.warn("No token; falling back to plain task creation without notification.");
+//     return createTask(taskData);
+//   }
+
+//   // Extract user information from token (same as button)
+//   let azureUserId, userEmail, userName;
+
+//   try {
+//     const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+//     azureUserId = tokenPayload.oid || tokenPayload.sub;
+//     userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
+//     userName = tokenPayload.name;
+//   } catch (error) {
+//     console.error("Failed to parse token:", error);
+//     azureUserId = currentUser.id?.toString();
+//     userEmail = currentUser.email;
+//     userName = currentUser.name;
+//   }
+
+//   // ✅ Enhanced request body with assigned user's Azure AD ID
+//   const requestBody = {
+//     task: {
+//       title: taskData.title,
+//       description: taskData.description,
+//       assignedTo: parseInt(taskData.assignedTo), // ✅ Convert to integer
+//       dueDate: taskData.dueDate
+//     },
+//     message: `You have been assigned a new task: '${taskData.title}'`,
+//     userId: azureUserId,           // Creator's Azure AD ID
+//     userEmail: userEmail,
+//     userName: userName,
+//     assignedUserAzureAdId: assignedUserAzureAdId, //Assigned user's Azure AD ID
+//     authToken: token,           // Backend auth token
+//     graphToken: graphT,         // Access token for Graph API
+//     timestamp: new Date().toISOString()
+//   };
+
+//   console.log("🔍 Full request body:", JSON.stringify(requestBody, null, 2));
+
+//   const response = await fetch(`${API_URL}/tasks`, {
+//     method: "POST",
+//     headers: {
+//       "Content-Type": "application/json",
+//       "Authorization": `Bearer ${token}`,
+//     },
+//     body: JSON.stringify(requestBody),
+//   });
+
+//   const responseText = await response.text();
+//   let parsed = null;
+//   try { parsed = responseText ? JSON.parse(responseText) : null; } catch { parsed = null; }
+
+//   if (parsed) {
+//      console.log("Backend result (createTaskWithNotification):", {
+//       success: parsed.Success ?? parsed.success,
+//       method: parsed.Method ?? parsed.method,
+//       message: parsed.Message ?? parsed.message,
+//       recipientId: parsed.RecipientId ?? parsed.recipientId,
+//       senderName: parsed.SenderName ?? parsed.senderName,
+//       tokenType: parsed.TokenType ?? parsed.tokenType,
+//       errorDetails: parsed.ErrorDetails ?? parsed.errorDetails,
+//       timestamp: parsed.Timestamp ?? parsed.timestamp,
+//     });
+//   }else {
+//     console.log("Backend response (createTaskWithNotification) not JSON:", responseText);
+//   }
+
+//   if (!response.ok) {
+//     const errorMsg = parsed?.Message || parsed?.message || responseText || `Status ${response.status}`;
+//     throw new Error(`Task creation failed: ${response.status}- ${errorMsg}`);
+//   }
+
+//   return parsed ?? { message: responseText, success: true };
+// }
+// export async function createTaskWithNotification(taskData, assignedUserAzureAdId) {
+//   console.log("🔔 Creating task with notification...");
+//   console.log("📋 Task data:", taskData);
+//   console.log("👤 Assigned user Azure AD ID:", assignedUserAzureAdId);
+
+//   const currentUser = getCurrentUser();
+//   console.log("Current user:", currentUser);
+//   if (!currentUser) {
+//     throw new Error("Please log in to create tasks");
+//   }
+
+//   let token = await getAuthToken();
+//   let graphT = await getGraphToken();
+//   if (!token) {
+//     console.warn("No token; falling back to plain task creation without notification.");
+//     return createTask(taskData);
+//   }
+
+//   // Extract user information from token (same as button)
+//   let azureUserId, userEmail, userName;
+
+//   try {
+//     const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+//     azureUserId = tokenPayload.oid || tokenPayload.sub;
+//     userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
+//     userName = tokenPayload.name;
+    
+//     console.log("Token payload extracted:", {
+//       azureUserId,
+//       userEmail,
+//       userName,
+//       audience: tokenPayload.aud
+//     });
+//   } catch (error) {
+//     console.error("Failed to parse token:", error);
+//     azureUserId = currentUser.id?.toString();
+//     userEmail = currentUser.email;
+//     userName = currentUser.name;
+//   }
+
+//   // ✅ Enhanced request body with assigned user's Azure AD ID
+//   const requestBody = {
+//     task: {
+//       title: taskData.title,
+//       description: taskData.description,
+//       assignedTo: parseInt(taskData.assignedTo), // ✅ Convert to integer
+//       dueDate: taskData.dueDate
+//     },
+//     message: `You have been assigned a new task: '${taskData.title}'`,
+//     userId: azureUserId,           // Creator's Azure AD ID
+//     userEmail: userEmail,
+//     userName: userName,
+//     assignedUserAzureAdId: assignedUserAzureAdId, //Assigned user's Azure AD ID
+//     authToken: token,           // Backend auth token (optional, already in header)
+//     graphToken: graphT,         // Access token for Graph API
+//     timestamp: new Date().toISOString()
+//   };
+
+//   console.log("🔍 Full request body:", JSON.stringify(requestBody, null, 2));
+
+//   try {
+//     const response = await fetch(`${API_URL}/tasks`, {
+//       method: "POST",
+//       headers: {
+//         "Content-Type": "application/json",
+//         "Authorization": `Bearer ${token}`,
+//       },
+//       body: JSON.stringify(requestBody),
+//     });
+
+//     const responseText = await response.text();
+//     let parsed = null;
+//     try { 
+//       parsed = responseText ? JSON.parse(responseText) : null; 
+//     } catch { 
+//       parsed = null; 
+//     }
+
+//     if (!response.ok) {
+//       console.error("❌ Task creation with notification failed:", response.status, responseText);
+//       const errorMsg = parsed?.message || parsed?.error || responseText || `Status ${response.status}`;
+//       throw new Error(`Task creation failed: ${response.status} - ${errorMsg}`);
+//     }
+
+//     const result = parsed ?? { message: responseText, success: true };
+//     console.log("✅ Task created with notification successfully:", result);
+
+//     // ✅ ENHANCED: Log the detailed notification result from backend
+//     if (result.notification) {
+//       console.log("🔔 NotificationResultDto (createTaskWithNotification):", {
+//         success: result.notification.success,
+//         method: result.notification.method,
+//         message: result.notification.message,
+//         recipientId: result.notification.recipientId,
+//         senderName: result.notification.senderName,
+//         tokenType: result.notification.tokenType,
+//         errorDetails: result.notification.errorDetails,
+//         timestamp: result.notification.timestamp,
+//       });
+
+//       if (result.notification.success) {
+//         console.log("🔔 Notification sent to assigned user successfully!");
+//         console.log(`📋 Method used: ${result.notification.method}`);
+//         console.log(`🎯 Token type: ${result.notification.tokenType}`);
+//         console.log(`👤 Recipient: ${result.notification.recipientId}`);
+//         console.log(`👤 Sender: ${result.notification.senderName}`);
+//       } else {
+//         console.log("⚠️ Task created but notification failed:");
+//         console.log(`❌ Error: ${result.notification.errorDetails || result.notification.message}`);
+//       }
+//     } else {
+//       // Fallback: check for old response format
+//       console.log("📋 Backend response (legacy format check):", {
+//         success: result.Success ?? result.success,
+//         method: result.Method ?? result.method,
+//         message: result.Message ?? result.message,
+//         recipientId: result.RecipientId ?? result.recipientId,
+//         senderName: result.SenderName ?? result.senderName,
+//         tokenType: result.TokenType ?? result.tokenType,
+//         errorDetails: result.ErrorDetails ?? result.errorDetails,
+//         timestamp: result.Timestamp ?? result.timestamp,
+//       });
+//     }
+
+//     // Log metadata
+//     if (result.metadata) {
+//       console.log("📊 Request metadata:", {
+//         requestType: result.metadata.requestType,
+//         notificationAttempted: result.metadata.notificationAttempted,
+//         taskCreatedAt: result.metadata.taskCreatedAt
+//       });
+//     }
+
+//     return result;
+//   } catch (fetchError) {
+//     console.error("❌ Network or parsing error in createTaskWithNotification:", fetchError);
+    
+//     // Provide more helpful error messages
+//     if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+//       throw new Error("Network error: Unable to connect to the backend server. Please check if the backend is running.");
+//     }
+    
+//     throw fetchError;
+//   }
+// }
 export async function createTaskWithNotification(taskData, assignedUserAzureAdId) {
   console.log("🔔 Creating task with notification...");
   console.log("📋 Task data:", taskData);
   console.log("👤 Assigned user Azure AD ID:", assignedUserAzureAdId);
 
   const currentUser = getCurrentUser();
+  console.log("Current user:", currentUser);
   if (!currentUser) {
     throw new Error("Please log in to create tasks");
   }
@@ -396,55 +884,107 @@ export async function createTaskWithNotification(taskData, assignedUserAzureAdId
     return createTask(taskData);
   }
 
-  // Extract user information from token (same as button)
+  // Extract user information from token
   let azureUserId, userEmail, userName;
-
   try {
     const tokenPayload = JSON.parse(atob(token.split('.')[1]));
     azureUserId = tokenPayload.oid || tokenPayload.sub;
     userEmail = tokenPayload.preferred_username || tokenPayload.upn || tokenPayload.email;
     userName = tokenPayload.name;
+    console.log("Token payload extracted:", { azureUserId, userEmail, userName, audience: tokenPayload.aud });
   } catch (error) {
     console.error("Failed to parse token:", error);
-    azureUserId = currentUser.id?.toString();
-    userEmail = currentUser.email;
-    userName = currentUser.name;
+    azureUserId = currentUser?.id?.toString();
+    userEmail = currentUser?.email;
+    userName = currentUser?.name;
   }
 
-  // ✅ Enhanced request body with assigned user's Azure AD ID
   const requestBody = {
     task: {
       title: taskData.title,
       description: taskData.description,
-      assignedTo: parseInt(taskData.assignedTo), // ✅ Convert to integer
+      assignedTo: parseInt(taskData.assignedTo),
       dueDate: taskData.dueDate
     },
     message: `You have been assigned a new task: '${taskData.title}'`,
-    userId: azureUserId,           // Creator's Azure AD ID
+    userId: azureUserId,
     userEmail: userEmail,
     userName: userName,
-    assignedUserAzureAdId: assignedUserAzureAdId, //Assigned user's Azure AD ID
-    authToken: token,           // Backend auth token
-    graphToken: graphT,         // Access token for Graph API
+    assignedUserAzureAdId: assignedUserAzureAdId,
+    authToken: token,
+    graphToken: graphT,
     timestamp: new Date().toISOString()
   };
 
   console.log("🔍 Full request body:", JSON.stringify(requestBody, null, 2));
 
-  const response = await fetch(`${API_URL}/tasks`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
-    body: JSON.stringify(requestBody),
-  });
+  try {
+    const response = await fetch(`${API_URL}/tasks`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Task creation failed: ${response.status}`);
+    const responseText = await response.text();
+    let parsed = null;
+    try { parsed = responseText ? JSON.parse(responseText) : null; } catch { parsed = null; }
+
+    if (!response.ok) {
+      console.error("❌ Task creation with notification failed:", response.status, responseText);
+      const errorMsg = parsed?.message || parsed?.error || responseText || `Status ${response.status}`;
+      throw new Error(`Task creation failed: ${response.status} - ${errorMsg}`);
+    }
+
+    const result = parsed ?? { message: responseText, success: true };
+    console.log("✅ Task created with notification successfully:", result);
+
+    // NORMALIZE notification DTO (accept PascalCase or camelCase, nested or root)
+    const rawNotif = (result?.notification ?? result?.Notification) || result;
+    const notif = {
+      success: rawNotif?.Success ?? rawNotif?.success ?? rawNotif?.Succeeded ?? false,
+      method: rawNotif?.Method ?? rawNotif?.method ?? null,
+      message: rawNotif?.Message ?? rawNotif?.message ?? null,
+      recipientId: rawNotif?.RecipientId ?? rawNotif?.recipientId ?? null,
+      senderName: rawNotif?.SenderName ?? rawNotif?.senderName ?? null,
+      tokenType: rawNotif?.TokenType ?? rawNotif?.tokenType ?? null,
+      errorDetails: rawNotif?.ErrorDetails ?? rawNotif?.errorDetails ?? null,
+      timestamp: rawNotif?.Timestamp ?? rawNotif?.timestamp ?? null
+    };
+
+    console.log("🔔 Normalized NotificationResultDto (createTaskWithNotification):", notif);
+
+    if (notif.success) {
+      console.log("🔔 Notification sent to assigned user successfully!");
+      console.log(`📋 Method used: ${notif.method}`);
+      console.log(`🎯 Token type: ${notif.tokenType}`);
+      console.log(`👤 Recipient: ${notif.recipientId}`);
+      console.log(`👤 Sender: ${notif.senderName}`);
+    } else {
+      console.log("⚠️ Task created but notification failed or skipped:");
+      console.log(`❌ Error: ${notif.errorDetails || notif.message}`);
+    }
+
+    // Log metadata if present
+    if (result.metadata) {
+      console.log("📊 Request metadata:", {
+        requestType: result.metadata.requestType,
+        notificationAttempted: result.metadata.notificationAttempted,
+        taskCreatedAt: result.metadata.taskCreatedAt
+      });
+    }
+
+    // Return original result (keep shape for callers) but include normalized notification for easier consumption
+    return { ...result, normalizedNotification: notif };
+  } catch (fetchError) {
+    console.error("❌ Network or parsing error in createTaskWithNotification:", fetchError);
+    if (fetchError.name === 'TypeError' && fetchError.message.includes('fetch')) {
+      throw new Error("Network error: Unable to connect to the backend server. Please check if the backend is running.");
+    }
+    throw fetchError;
   }
-
-  return await response.json();
 }
 
 // Update an existing task
@@ -527,14 +1067,37 @@ export async function microsoftSsoAuth(token) {
       "Content-Type": "application/json",
     },
   });
+
+  const raw = await res.text().catch(() => "");
+  // Try to parse JSON body when possible
+  let parsed;
+  try { parsed = raw ? JSON.parse(raw) : null; } catch (e) { parsed = null; }
+
   if (res.status === 404) {
+    console.error("microsoftSsoAuth: /auth/microsoft-sso not found (404)");
     throw new Error("404: /auth/microsoft-sso endpoint not found.");
   }
+
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(`Microsoft SSO auth failed (status ${res.status}) ${text}`);
+    console.error("microsoftSsoAuth failed", { status: res.status, body: parsed || raw });
+    throw new Error(`Microsoft SSO auth failed (status ${res.status}) ${raw}`);
   }
-  return res.json();
+
+  console.debug("microsoftSsoAuth response parsed:", parsed || raw);
+  return parsed || { raw };
+}
+
+// Debug helper: attempt to get Teams SSO token and log details (useful in Teams devconsole)
+export async function debugGetTeamsSsoToken() {
+  try {
+    console.log("[debug] attempting getTeamsSsoToken...");
+    const t = await getTeamsSsoToken();
+    console.log("[debug] getTeamsSsoToken returned:", t ? `[token length ${t.length}]` : t);
+    return t;
+  } catch (e) {
+    console.error("[debug] getTeamsSsoToken error:", e?.message || e);
+    return null;
+  }
 }
 
 // NEW: unified login attempt using a Teams (getAuthToken/authenticate) token or MSAL id/access token.
