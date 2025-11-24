@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Identity.Web;
@@ -38,9 +39,10 @@ if (hasValidAzureAd)
     try
     {
         // Add Microsoft Identity Web services with token acquisition
-        builder.Services.AddMicrosoftIdentityWebApiAuthentication(configuration, "AzureAd")
-                       .EnableTokenAcquisitionToCallDownstreamApi()
-                       .AddInMemoryTokenCaches();
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddMicrosoftIdentityWebApi(builder.Configuration, "AzureAd")
+            .EnableTokenAcquisitionToCallDownstreamApi()
+            .AddInMemoryTokenCaches();
 
         builder.Services.AddScoped<IGraphTokenService, GraphTokenService>();
         Console.WriteLine("✅ GraphTokenService registered successfully");
@@ -69,7 +71,10 @@ if (hasValidAzureAd)
                         // Backend API
                         clientId,
                         $"api://{clientId}",
-                        // Frontend app (for cross-app tokens)
+                        // Frontend app (the one actually sending tokens)
+                        "59aef810-e681-4b84-bc17-2561fe854c0e",
+                        $"api://59aef810-e681-4b84-bc17-2561fe854c0e",
+                        // Legacy frontend app
                         frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5",
                         $"api://{frontendClientId ?? "f6c2a5e9-3bd5-4223-ad2c-618846a668c5"}",
                         // Microsoft Graph
@@ -644,7 +649,6 @@ app.MapGet("/health", () => new
     iframeEmbeddingEnabled = true,
     universalAuthEnabled = true
 });
-
 Console.WriteLine($"🚀 MiniTasker API starting with Graph API and Universal Auth: {(hasValidAzureAd ? "Enabled" : "Disabled")}");
 Console.WriteLine("🔧 Iframe embedding configured for Microsoft Teams");
 Console.WriteLine("🔧 Universal authentication configured (Web + Teams)");
