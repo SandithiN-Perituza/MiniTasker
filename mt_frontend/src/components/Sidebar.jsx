@@ -1,5 +1,5 @@
 import React, { useContext } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import UserContext from "../context/UserContext";
 import { IoMenu } from "react-icons/io5";
 import MicrosoftLoginButton from "./MicrosoftLoginButton";
@@ -40,35 +40,17 @@ export default function Sidebar({ open, onClose }) {
           <IoMenu size={24} />
         </button>
         <nav className="flex flex-col gap-2 p-4">
-          {!user && (
-            <>
-              <MicrosoftLoginButton
-                onSuccess={() => {
-                  onClose();
-                  navigate("/");
-                }}
-                onError={(e) => {
-                  console.error("Microsoft login failed", e);
-                }}
-              />
-              <div className="text-xs text-gray-400 text-center">or</div>
-              <Link
-                to="/login"
-                className="py-2 px-4 rounded hover:bg-blue-100"
-                onClick={onClose}
-              >
-                Login
-              </Link>
-              <Link
-                to="/signup"
-                className="py-2 px-4 rounded hover:bg-blue-100"
-                onClick={onClose}
-              >
-                Signup
-              </Link>
-            </>
-          )}
-          {user && (
+          {!user ? (
+            <MicrosoftLoginButton
+              onSuccess={() => {
+                onClose();
+                navigate("/");
+              }}
+              onError={(e) => {
+                console.error("Microsoft login failed", e);
+              }}
+            />
+          ) : (
             <button
               className="py-2 px-4 rounded hover:bg-blue-100 text-left"
               onClick={handleLogout}

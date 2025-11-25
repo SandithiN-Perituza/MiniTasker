@@ -9,9 +9,99 @@ import { syncTeamsDirectory } from "../api/api";
 export function UserProvider({ children }) {
   const [user, setUser] = useState(null);
  
+  // Normalize various possible shapes the backend or tokens might return into a minimal user
+  const isGuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+  const normalizeUser = (maybe) => {
+    try {
+      if (!maybe) return null;
+      // If unified response wraps { user } or { data }
+      const candidate = (maybe.user && typeof maybe.user === 'object') ? maybe.user : (maybe.data && typeof maybe.data === 'object') ? maybe.data : maybe;
+
+      // If candidate is an object with graphToken and no nested user, try to parse graphToken
+      if (candidate && typeof candidate === 'object' && candidate.graphToken && (!candidate.id && !candidate.azureAdId && Object.keys(candidate).length <= 3)) {
+        const tokenStr = candidate.graphToken;
+        const parts = tokenStr.split('.');
+        if (parts.length > 1) {
+          try {
+            const payload = parts[1];
+            const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+            const json = atob(b64);
+            const claims = JSON.parse(json);
+            return {
+              id: claims.oid || claims.sub || claims.preferred_username || claims.upn || claims.email || 'unknown',
+              azureAdId: claims.oid || claims.sub || (isGuid(claims?.id) ? claims.id : null) || null,
+              name: claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(' ') || claims.preferred_username || claims.email || null,
+              email: claims.preferred_username || claims.upn || claims.mail || claims.email || null,
+            };
+          } catch (e) {
+            console.debug('[UserProvider] graphToken parse failed', e?.message || e);
+          }
+        }
+      }
+
+      // If candidate is a JWT string
+      if (typeof candidate === 'string') {
+        const parts = candidate.split('.');
+        if (parts.length > 1) {
+          try {
+            const payload = parts[1];
+            const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+            const json = atob(b64);
+            const claims = JSON.parse(json);
+            return {
+              id: claims.oid || claims.sub || claims.preferred_username || claims.upn || claims.email || 'unknown',
+              azureAdId: claims.oid || claims.sub || null,
+              name: claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(' ') || claims.preferred_username || claims.email || null,
+              email: claims.preferred_username || claims.upn || claims.mail || claims.email || null,
+            };
+          } catch (e) {
+            console.debug('[UserProvider] token string parse failed', e?.message || e);
+          }
+        }
+      }
+
+      // Otherwise, extract common fields from object
+      if (candidate && typeof candidate === 'object') {
+        return {
+          id: candidate.id ?? candidate.userId ?? candidate.localId ?? 'unknown',
+          azureAdId: candidate.azureAdId ?? candidate.oid ?? candidate.azureAdObjectId ?? (isGuid(candidate.id) ? candidate.id : null) ?? null,
+          name: candidate.name ?? candidate.displayName ?? candidate.fullName ?? null,
+          email: candidate.email ?? candidate.mail ?? candidate.userPrincipalName ?? candidate.preferred_username ?? candidate.upn ?? null,
+        };
+      }
+    } catch (e) {
+      console.debug('[UserProvider] normalizeUser error', e?.message || e);
+    }
+    return null;
+  };
+ 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    setUser(storedUser ? JSON.parse(storedUser) : null);
+    const storedRaw = localStorage.getItem("user");
+    if (!storedRaw) {
+      setUser(null);
+      return;
+    }
+    try {
+      const parsed = JSON.parse(storedRaw);
+      console.debug('[UserProvider] storedUser parsed:', parsed);
+      const normalized = normalizeUser(parsed) || normalizeUser(parsed.user) || normalizeUser(parsed.data) || null;
+      if (normalized) {
+        // Ensure localStorage contains the normalized shape for other parts of the app
+        try { localStorage.setItem('user', JSON.stringify(normalized)); } catch (e) { console.debug('[UserProvider] failed writing normalized user to localStorage', e?.message || e); }
+        setUser(normalized);
+      } else {
+        setUser(parsed);
+      }
+    } catch (e) {
+      // stored value wasn't JSON (maybe a token string)
+      const normalized = normalizeUser(storedRaw);
+      if (normalized) {
+        try { localStorage.setItem('user', JSON.stringify(normalized)); } catch (e2) { console.debug('[UserProvider] failed writing normalized user token to localStorage', e2?.message || e2); }
+        setUser(normalized);
+      } else {
+        setUser(null);
+      }
+    }
   }, []);
  
   // Handle redirect responses after ensured initialization

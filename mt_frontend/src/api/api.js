@@ -1068,6 +1068,8 @@ export async function microsoftSsoAuth(token) {
     },
   });
 
+  console.debug("microsoftSsoAuth response status:", res.status);
+  console.debug("microsoftSsoAuth response headers:", [...res.headers.entries()]);
   const raw = await res.text().catch(() => "");
   // Try to parse JSON body when possible
   let parsed;
@@ -1084,6 +1086,128 @@ export async function microsoftSsoAuth(token) {
   }
 
   console.debug("microsoftSsoAuth response parsed:", parsed || raw);
+  // Extra debug: log common response fields so we can verify backend returned user and token
+  try {
+    const fullResp = parsed || raw;
+    console.debug('microsoftSsoAuth fullResponse:', fullResp);
+    if (parsed && typeof parsed === 'object') {
+      console.debug('microsoftSsoAuth graphToken:', parsed.graphToken ?? null);
+      console.debug('microsoftSsoAuth exchangeType:', parsed.exchangeType ?? null);
+      console.debug('microsoftSsoAuth nested user candidate:', parsed.user ?? parsed.data ?? null);
+    }
+  } catch (dbgErr) {
+    console.debug('microsoftSsoAuth extra debug failed:', dbgErr?.message || dbgErr);
+  }
+  // If the backend returned a user DTO (or wrapped user), persist a normalized user to localStorage
+  try {
+    const maybeUser = (parsed && (parsed.user || parsed.data)) ? (parsed.user || parsed.data) : parsed;
+    if (maybeUser && (maybeUser.id || maybeUser.azureAdId || maybeUser.email || maybeUser.name)) {
+      const isGuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+      const normalized = {
+        id: maybeUser.id ?? maybeUser.userId ?? maybeUser.localId ?? 'unknown',
+        azureAdId: maybeUser.azureAdId ?? maybeUser.oid ?? maybeUser.azureAdObjectId ?? (isGuid(maybeUser.id) ? maybeUser.id : null),
+        name: maybeUser.name ?? maybeUser.displayName ?? maybeUser.fullName ?? null,
+        email: maybeUser.email ?? maybeUser.mail ?? maybeUser.userPrincipalName ?? maybeUser.preferred_username ?? maybeUser.upn ?? null,
+      };
+      try {
+        localStorage.setItem('user', JSON.stringify(normalized));
+        console.debug('microsoftSsoAuth saved normalized user to localStorage:', normalized);
+      } catch (lsErr) {
+        console.debug('microsoftSsoAuth: failed to write user to localStorage', lsErr?.message || lsErr);
+      }
+    } else if (typeof (parsed || raw) === 'string') {
+      // If the response is a raw token (string), attempt to parse JWT claims and derive a minimal user
+      const tokenStr = parsed || raw;
+      try {
+        const parts = tokenStr.split('.');
+        if (parts.length > 1) {
+          const payload = parts[1];
+          const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+          let claims = null;
+          try {
+            claims = JSON.parse(atob(b64));
+          } catch (e) {
+            try {
+              const json = decodeURIComponent(
+                atob(b64)
+                  .split('')
+                  .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                  .join('')
+              );
+              claims = JSON.parse(json);
+            } catch (e2) {
+              claims = null;
+            }
+          }
+
+          if (claims) {
+            const derived = {
+              id: claims.oid || claims.sub || claims.upn || claims.preferred_username || claims.email || 'unknown',
+              azureAdId: claims.oid || claims.sub || null,
+              name: claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(' ') || claims.preferred_username || claims.email || null,
+              email: claims.preferred_username || claims.upn || claims.email || null,
+            };
+            try {
+              localStorage.setItem('user', JSON.stringify(derived));
+              console.debug('microsoftSsoAuth derived and saved user from token to localStorage:', derived);
+            } catch (lsErr2) {
+              console.debug('microsoftSsoAuth: failed to write derived user to localStorage', lsErr2?.message || lsErr2);
+            }
+          }
+        }
+      } catch (tokErr) {
+        console.debug('microsoftSsoAuth: token-derived user parsing failed', tokErr?.message || tokErr);
+      }
+    }
+    // If parsed is an object with a graphToken but no nested user details,
+    // try to parse the graphToken JWT and derive a minimal user.
+    if (parsed && typeof parsed === 'object' && parsed.graphToken) {
+      const nested = parsed.user || parsed.data || null;
+      const isEmptyNested = nested && typeof nested === 'object' && Object.keys(nested).length === 0;
+      if (!nested || isEmptyNested) {
+        try {
+          const tokenStr = parsed.graphToken;
+          const parts = tokenStr.split('.');
+          if (parts.length > 1) {
+            const payload = parts[1];
+            const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+            let claims = null;
+            try { claims = JSON.parse(atob(b64)); } catch (e) {
+              try {
+                const json = decodeURIComponent(
+                  atob(b64)
+                    .split('')
+                    .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+                    .join('')
+                );
+                claims = JSON.parse(json);
+              } catch (e2) { claims = null; }
+            }
+
+            if (claims) {
+              const derivedFromGraph = {
+                id: claims.oid || claims.sub || claims.upn || claims.preferred_username || claims.email || 'unknown',
+                azureAdId: claims.oid || claims.sub || null,
+                name: claims.name || [claims.given_name, claims.family_name].filter(Boolean).join(' ') || claims.preferred_username || claims.email || null,
+                email: claims.preferred_username || claims.upn || claims.email || null,
+              };
+              try {
+                localStorage.setItem('user', JSON.stringify(derivedFromGraph));
+                console.debug('microsoftSsoAuth parsed graphToken and saved derived user to localStorage:', derivedFromGraph);
+              } catch (lsErr3) {
+                console.debug('microsoftSsoAuth: failed to write derivedFromGraph to localStorage', lsErr3?.message || lsErr3);
+              }
+            }
+          }
+        } catch (errTokenParse) {
+          console.debug('microsoftSsoAuth: parsing parsed.graphToken failed', errTokenParse?.message || errTokenParse);
+        }
+      }
+    }
+  } catch (e) {
+    console.debug('microsoftSsoAuth: error while attempting to persist user to localStorage', e?.message || e);
+  }
+
   return parsed || { raw };
 }
 
