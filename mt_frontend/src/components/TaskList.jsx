@@ -26,10 +26,36 @@ export default function TaskList() {
     });
   }
 
+  // Determine whether a task is assigned to the current user
+  const isAssignedToUser = (task, user) => {
+    if (!user || !task) return false;
+
+    // Common task-assigned fields
+    const taskAssigned = task.assignedTo ?? task.assignedUserId ?? task.userId ?? task.assigned_to ?? null;
+    if (taskAssigned != null) {
+      if (String(taskAssigned) === String(user.id)) return true;
+      if (String(taskAssigned) === String(user.localId ?? user.userId ?? user.appId ?? '')) return true;
+    }
+
+    // Check Azure AD IDs if present on task
+    const taskAssignedAzure = task.assignedUserAzureAdId ?? task.assignedAzureAdId ?? task.assignedUserAzureId ?? task.assignedAzureId ?? null;
+    if (taskAssignedAzure && user.azureAdId) {
+      if (String(taskAssignedAzure).toLowerCase() === String(user.azureAdId).toLowerCase()) return true;
+    }
+
+    // Check nested assigned user object
+    if (task.assignedUser && typeof task.assignedUser === 'object') {
+      if (String(task.assignedUser.id) === String(user.id)) return true;
+      if (task.assignedUser.azureAdId && user.azureAdId && String(task.assignedUser.azureAdId).toLowerCase() === String(user.azureAdId).toLowerCase()) return true;
+    }
+
+    return false;
+  };
+
   const handleDelete = async (id) => {
     if (!user) return;
     const task = tasks.find((t) => t.id === id);
-    if (String(task?.assignedTo) !== String(user.id)) {
+    if (!isAssignedToUser(task, user)) {
       alert("You can only delete tasks assigned to you.");
       return;
     }
@@ -45,7 +71,7 @@ export default function TaskList() {
   };
 
   const handleEdit = (task) => {
-    if (String(task?.assignedTo) !== String(user.id)) {
+    if (!isAssignedToUser(task, user)) {
       alert("You can only edit tasks assigned to you.");
       return;
     }
@@ -72,9 +98,7 @@ export default function TaskList() {
         .toLowerCase()
         .includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter ? task.status === statusFilter : true;
-      const matchesMine = showMine
-        ? String(task.assignedTo) === String(user?.id)
-        : true;
+      const matchesMine = showMine ? isAssignedToUser(task, user) : true;
       return matchesSearch && matchesStatus && matchesMine;
     })
     .sort((a, b) => b.id - a.id);
@@ -275,8 +299,7 @@ export default function TaskList() {
                   View
                 </button>
 
-                {user &&
-                  String(task.assignedTo) === String(user.id) && (
+                {user && isAssignedToUser(task, user) && (
                     <>
                       <span className="text-gray-500">|</span>
                       <button
