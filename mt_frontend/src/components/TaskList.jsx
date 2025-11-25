@@ -53,20 +53,42 @@ export default function TaskList() {
   };
 
   const handleDelete = async (id) => {
+    // NOTE: this function is kept for direct programmatic deletion if needed
     if (!user) return;
     const task = tasks.find((t) => t.id === id);
     if (!isAssignedToUser(task, user)) {
       alert("You can only delete tasks assigned to you.");
       return;
     }
+    try {
+      await deleteTask(id);
+      loadTasks();
+    } catch (error) {
+      alert("Error deleting task: " + error.message);
+    }
+  };
 
-    if (window.confirm("Are you sure you want to delete this task?")) {
-      try {
-        await deleteTask(id);
-        loadTasks();
-      } catch (error) {
-        alert("Error deleting task: " + error.message);
-      }
+  // Confirmation modal state for deletions (works in Teams desktop too)
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+
+  const confirmDelete = async () => {
+    if (!user || !deleteCandidate) {
+      setDeleteCandidate(null);
+      return;
+    }
+    // Double-check ownership before deleting
+    if (!isAssignedToUser(deleteCandidate, user)) {
+      alert("You can only delete tasks assigned to you.");
+      setDeleteCandidate(null);
+      return;
+    }
+    try {
+      await deleteTask(deleteCandidate.id);
+      setDeleteCandidate(null);
+      loadTasks();
+    } catch (error) {
+      alert("Error deleting task: " + error.message);
+      setDeleteCandidate(null);
     }
   };
 
@@ -225,6 +247,36 @@ export default function TaskList() {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
+      {deleteCandidate && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+          onClick={() => setDeleteCandidate(null)}
+        >
+          <div
+            className="bg-white p-6 rounded shadow-lg w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Confirm delete</h3>
+            <p className="mb-4">Are you sure you want to delete the task "{deleteCandidate.title}"?</p>
+            <div className="flex gap-4 justify-end">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded"
+                onClick={() => setDeleteCandidate(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-red-500 text-white rounded"
+                onClick={() => confirmDelete()}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Search and Filter */}
       <div className="flex gap-4 mt-6 mb-4">
         <input
@@ -311,7 +363,7 @@ export default function TaskList() {
                       <span className="text-gray-500">|</span>
                       <button
                         className="text-red-500"
-                        onClick={() => handleDelete(task.id)}
+                        onClick={() => setDeleteCandidate(task)}
                       >
                         Delete
                       </button>
