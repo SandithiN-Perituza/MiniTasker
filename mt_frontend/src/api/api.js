@@ -1264,12 +1264,37 @@ export async function fetchComments(taskId) {
 
 // Add a comment to a task
 export async function addComment(taskId, comment) {
-  const res = await fetch(`${API_URL}/tasks/${taskId}/comment`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(comment),
-  });
-  return res.json();
+  try {
+    const token = await getAuthToken();
+
+    const res = await fetch(`${API_URL}/tasks/${taskId}/comment`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(comment),
+    });
+
+    const text = await res.text();
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
+
+    if (!res.ok) {
+      const errMsg = parsed?.message || parsed?.error || text || `Status ${res.status}`;
+      throw new Error(errMsg);
+    }
+
+    // Normalize common shapes: may return { comment: {...} } or the comment directly
+    if (parsed && typeof parsed === 'object') {
+      return parsed;
+    }
+
+    return { comment: parsed };
+  } catch (e) {
+    console.error('addComment failed', e);
+    throw e;
+  }
 }
 
 // Subtasks
@@ -1281,12 +1306,34 @@ export async function fetchSubtasks(taskId) {
 
 // Add a subtask to a task
 export async function addSubtask(taskId, subtask) {
-  const res = await fetch(`${API_URL}/tasks/${taskId}/subtask`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(subtask),
-  });
-  return res.json();
+  try {
+    const token = await getAuthToken();
+
+    const res = await fetch(`${API_URL}/tasks/${taskId}/subtask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(subtask),
+    });
+
+    const text = await res.text();
+    let parsed = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { parsed = null; }
+
+    if (!res.ok) {
+      const errMsg = parsed?.message || parsed?.error || text || `Status ${res.status}`;
+      throw new Error(errMsg);
+    }
+
+    // Backend may return subtask directly or wrap it (e.g., { subtask: {...} })
+    if (parsed && typeof parsed === 'object') return parsed;
+    return { subtask: parsed };
+  } catch (e) {
+    console.error('addSubtask failed', e);
+    throw e;
+  }
 }
 
 // Complete a subtask
