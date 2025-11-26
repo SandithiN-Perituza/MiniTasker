@@ -76,6 +76,12 @@ export function UserProvider({ children }) {
   };
  
   useEffect(() => {
+    // Clear any one-time reload flags set by login flows to prevent loops
+    try {
+      sessionStorage.removeItem('ms_login_reload');
+      sessionStorage.removeItem('teams_login_reload');
+    } catch (e) { /* ignore */ }
+
     const storedRaw = localStorage.getItem("user");
     if (!storedRaw) {
       setUser(null);

@@ -62,6 +62,16 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
       const userData = await loginWithMicrosoft();
       if (userData) {
         onSuccess && onSuccess(userData);
+        try {
+          // Save to localStorage in normalized form so other parts of the app can pick it up
+          localStorage.setItem('user', JSON.stringify(userData));
+        } catch (e) { console.debug('[MicrosoftLoginButton] failed saving user to localStorage', e); }
+
+        // Set a session flag so the app knows this reload was triggered by login
+        try { sessionStorage.setItem('ms_login_reload', 'pending'); } catch (e) { /* ignore */ }
+
+        // Reload to ensure providers and UI pick up the new user synchronously
+        window.location.reload();
         return userData;
       }
     } catch (err) {
