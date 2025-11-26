@@ -11,7 +11,7 @@ export default function Sidebar({ open, onClose }) {
   function handleLogout() {
     logout();
     onClose();
-    navigate("/login");
+    navigate("/");
   }
 
   return (
