@@ -26,8 +26,21 @@ export default function Subtasks({ taskId }) {
       isCompleted: false,
     };
 
-    const added = await addSubtask(taskId, subtaskData);
-    setSubtasks([...subtasks, added]);
+    try {
+      const addedResp = await addSubtask(taskId, subtaskData);
+      // Backend may return the subtask directly or wrap it in { subtask }
+      const added = addedResp?.subtask ?? addedResp;
+      if (added && added.id) {
+        setSubtasks((prev) => [...prev, added]);
+      } else {
+        console.warn('addSubtask returned unexpected shape', addedResp);
+        // Attempt to refresh list
+        const refreshed = await fetchSubtasks(taskId);
+        setSubtasks(refreshed);
+      }
+    } catch (error) {
+      console.error('Failed to add subtask:', error);
+    }
     setNewSubtask("");
   };
 
