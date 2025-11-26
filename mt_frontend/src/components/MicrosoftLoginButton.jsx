@@ -29,7 +29,7 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
           // If desktop client likely cannot perform in-app auth, surface error and avoid silent failure
           if (isTeamsDesktop()) {
             const msg = 'Teams authentication failed or timed out in the desktop client. Please try signing in using the web app or contact your administrator.';
-            try { window.alert(msg); } catch (e) {}
+            try { window.alert(msg); } catch (e) { console.log('Alert failed:', e); }
             onError && onError(teamsErr);
             return;
           }
@@ -45,9 +45,17 @@ export default function MicrosoftLoginButton({ onSuccess, onError }) {
         }
 
         const savedUser = await unifiedMicrosoftLogin(token);
-        login && login(savedUser);
-        onSuccess && onSuccess(savedUser);
-        return savedUser;
+        console.log('[MicrosoftLoginButton] Teams login successful, savedUser:', savedUser);
+        
+        // Save to localStorage
+        localStorage.setItem("user", JSON.stringify(savedUser));
+        
+        // Set flag to prevent reload loop
+        sessionStorage.setItem('teams_login_reload', 'done');
+        
+        // Force reload to update UI in Teams
+        window.location.reload();
+        return;
       }
 
       // Browser (non-Teams) flow using MSAL logic in UserProvider

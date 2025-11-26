@@ -13,6 +13,9 @@ import { FaRegTrashCan } from "react-icons/fa6";
 export default function Subtasks({ taskId }) {
   const [subtasks, setSubtasks] = useState([]);
   const [newSubtask, setNewSubtask] = useState("");
+  const [editingSubtask, setEditingSubtask] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
 
   useEffect(() => {
     fetchSubtasks(taskId).then(setSubtasks);
@@ -26,9 +29,16 @@ export default function Subtasks({ taskId }) {
       isCompleted: false,
     };
 
-    const added = await addSubtask(taskId, subtaskData);
-    setSubtasks([...subtasks, added]);
-    setNewSubtask("");
+    try {
+      const response = await addSubtask(taskId, subtaskData);
+      // Handle both response formats: direct subtask object or wrapped response
+      const addedSubtask = response.subtask || response;
+      setSubtasks([...subtasks, addedSubtask]);
+      setNewSubtask("");
+    } catch (error) {
+      console.error("Failed to add subtask:", error);
+      alert("Error adding subtask: " + error.message);
+    }
   };
 
   const handleToggle = async (subtask) => {
@@ -44,36 +54,127 @@ export default function Subtasks({ taskId }) {
     }
   };
 
-  const handleEdit = async (subtask) => {
-    const newTitle = prompt("Edit subtask title:", subtask.title);
-    if (newTitle && newTitle.trim() !== subtask.title) {
-      try {
-        const updated = await updateSubtask(taskId, subtask.id, {
-          title: newTitle.trim(),
-        });
-        setSubtasks((prev) =>
-          prev.map((s) => (s.id === updated.subtask.id ? updated.subtask : s))
-        );
-      } catch (error) {
-        console.error("Failed to update subtask:", error);
-      }
+  const handleEdit = (subtask) => {
+    setEditingSubtask(subtask);
+    setEditTitle(subtask.title);
+  };
+
+  const confirmEdit = async () => {
+    if (!editTitle.trim() || editTitle.trim() === editingSubtask.title) {
+      setEditingSubtask(null);
+      setEditTitle("");
+      return;
+    }
+    try {
+      const updated = await updateSubtask(taskId, editingSubtask.id, {
+        title: editTitle.trim(),
+      });
+      setSubtasks((prev) =>
+        prev.map((s) => (s.id === updated.subtask.id ? updated.subtask : s))
+      );
+      setEditingSubtask(null);
+      setEditTitle("");
+    } catch (error) {
+      console.error("Failed to update subtask:", error);
+      alert("Error updating subtask: " + error.message);
     }
   };
 
-  const handleDelete = async (subtaskId) => {
-    if (!window.confirm("Are you sure you want to delete this subtask?")) return;
+  const handleDelete = (subtask) => {
+    setDeleteCandidate(subtask);
+  };
 
+  const confirmDelete = async () => {
+    if (!deleteCandidate) return;
     try {
-      await deleteSubtask(taskId, subtaskId);
-      setSubtasks((prev) => prev.filter((s) => s.id !== subtaskId));
+      await deleteSubtask(taskId, deleteCandidate.id);
+      setSubtasks((prev) => prev.filter((s) => s.id !== deleteCandidate.id));
+      setDeleteCandidate(null);
     } catch (error) {
       console.error("Failed to delete subtask:", error);
+      alert("Error deleting subtask: " + error.message);
+      setDeleteCandidate(null);
     }
   };
 
   return (
     <div className="mt-6">
       <h4 className="text-lg font-semibold mb-2">Subtasks</h4>
+
+      {/* Edit Subtask Modal */}
+      {editingSubtask && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+          onClick={() => {
+            setEditingSubtask(null);
+            setEditTitle("");
+          }}
+        >
+          <div
+            className="bg-white p-6 rounded shadow-lg w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Edit Subtask</h3>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="w-full p-2 border rounded mb-4"
+              placeholder="Subtask title"
+              autoFocus
+            />
+            <div className="flex gap-4 justify-end">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded"
+                onClick={() => {
+                  setEditingSubtask(null);
+                  setEditTitle("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-500 text-white rounded"
+                onClick={confirmEdit}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteCandidate && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
+          onClick={() => setDeleteCandidate(null)}
+        >
+          <div
+            className="bg-white p-6 rounded shadow-lg w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
+            <p className="mb-4">
+              Are you sure you want to delete the subtask "{deleteCandidate.title}"?
+            </p>
+            <div className="flex gap-4 justify-end">
+              <button
+                className="px-4 py-2 bg-gray-200 rounded"
+                onClick={() => setDeleteCandidate(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-red-500 text-white rounded"
+                onClick={confirmDelete}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-4">
         <input
@@ -117,7 +218,7 @@ export default function Subtasks({ taskId }) {
               <button onClick={() => handleEdit(subtask)}>
                 <FaRegEdit className="text-blue-500 hover:text-blue-700" />
               </button>
-              <button onClick={() => handleDelete(subtask.id)}>
+              <button onClick={() => handleDelete(subtask)}>
                 <FaRegTrashCan className="text-red-500 hover:text-red-700" />
               </button>
             </div>

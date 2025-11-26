@@ -1,10 +1,13 @@
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
 import { Link } from "react-router-dom";
 import UserContext from "../context/UserContext";
 
 export default function Header({ onMenuClick }) {
   const { user } = useContext(UserContext);
   
+  useEffect(() => {
+    console.log('[Header] User state updated:', user);
+  }, [user]);
 
   return (
     <header className="bg-blue-700 text-white p-4 flex items-center justify-between">

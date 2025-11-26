@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { UserProvider } from "./context/UserProvider";
 import TaskList from "./components/TaskList";
+import TaskDetail from "./pages/TaskDetail";
 import Sidebar from "./components/Sidebar";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -23,6 +24,7 @@ export default function App() {
         <main className="flex-1 p-4">
           <Routes>
             <Route path="/" element={<TaskList />} />
+            <Route path="/task/:taskId" element={<TaskDetail />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
           </Routes>

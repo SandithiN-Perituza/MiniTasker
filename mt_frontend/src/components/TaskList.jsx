@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { fetchTasks, deleteTask } from "../api/api";
 import TaskForm from "./TaskForm";
 import CommentSection from "./CommentSection";
@@ -8,9 +9,9 @@ import { PiWarningCircleBold } from "react-icons/pi";
 
 export default function TaskList() {
   const { user } = useContext(UserContext);
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [editing, setEditing] = useState(null);
-  const [viewingTask, setViewingTask] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -50,22 +51,6 @@ export default function TaskList() {
     }
 
     return false;
-  };
-
-  const handleDelete = async (id) => {
-    // NOTE: this function is kept for direct programmatic deletion if needed
-    if (!user) return;
-    const task = tasks.find((t) => t.id === id);
-    if (!isAssignedToUser(task, user)) {
-      alert("You can only delete tasks assigned to you.");
-      return;
-    }
-    try {
-      await deleteTask(id);
-      loadTasks();
-    } catch (error) {
-      alert("Error deleting task: " + error.message);
-    }
   };
 
   // Confirmation modal state for deletions (works in Teams desktop too)
@@ -196,57 +181,6 @@ export default function TaskList() {
         </div>
       )}
 
-      {/* Task View Modal */}
-      {viewingTask && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50"
-          onClick={() => setViewingTask(null)}
-        >
-          <div
-            className="bg-white p-6 rounded shadow-lg w-full max-w-md overflow-y-auto max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex flex-row justify-between items-center mb-4 mr-10">
-              <div>
-                <h2 className="text-xl font-bold mb-2">{viewingTask.title}</h2>
-                <p className="text-gray-700 mb-2">{viewingTask.description}</p>
-                <p className="text-sm text-gray-500 mb-2">
-                  Status: {statusLabels[viewingTask.status]}
-                  <br />
-                  Assigned to: {viewingTask.assignedUserName || "Unassigned"}
-                  <br />
-                  Due Date:{" "}
-                  {viewingTask.dueDate
-                    ? new Date(viewingTask.dueDate).toLocaleDateString()
-                    : "No due date"}
-                </p>
-              </div>
-              {viewingTask.dueDate &&
-                new Date(viewingTask.dueDate) < new Date() &&
-                viewingTask.status !== "Complete" && (
-                  <div className="flex flex-col items-center text-red-600 font-semibold">
-                    <PiWarningCircleBold className="text-2xl" />
-                    Overdue
-                  </div>
-              )}
-            </div>
-
-            {/* Subtasks */}
-            <Subtasks taskId={viewingTask.id} />
-
-            {/* Comments */}
-            <CommentSection taskId={viewingTask.id} userId={user?.id} />
-
-            <button
-              className="mt-4 text-red-500"
-              onClick={() => setViewingTask(null)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Delete Confirmation Modal */}
       {deleteCandidate && (
         <div
@@ -345,8 +279,8 @@ export default function TaskList() {
 
               <div className="flex gap-2">
                 <button
-                  className="text-purple-500"
-                  onClick={() => setViewingTask(task)}
+                  className="text-purple-500 hover:text-purple-700"
+                  onClick={() => navigate(`/task/${task.id}`)}
                 >
                   View
                 </button>
