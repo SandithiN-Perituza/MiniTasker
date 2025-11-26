@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Identity.Web;
 using mt_backend.Services.Interfaces;
+using mt_backend.Models;
 using System.Net.Http;
 using System.Text.Json;
 
@@ -14,17 +15,20 @@ namespace mt_backend.Controllers
     {
         private readonly ITokenAcquisition _tokenAcquisition;
         private readonly IGraphTokenService _graphTokenService;
+        private readonly IUserService _userService;
         private readonly ILogger<MicrosoftSsoController> _logger;
         private readonly HttpClient _httpClient;
 
         public MicrosoftSsoController(
             ITokenAcquisition tokenAcquisition,
             IGraphTokenService graphTokenService,
+            IUserService userService,
             ILogger<MicrosoftSsoController> logger,
             HttpClient httpClient)
         {
             _tokenAcquisition = tokenAcquisition;
             _graphTokenService = graphTokenService;
+            _userService = userService;
             _logger = logger;
             _httpClient = httpClient;
         }
@@ -89,6 +93,87 @@ namespace mt_backend.Controllers
             }
         }
 
+        // Helper method to save/update user in database
+        private async Task<User?> SaveOrUpdateUserAsync(dynamic userDetails)
+        {
+            try
+            {
+                if (userDetails?.id == null)
+                {
+                    _logger.LogWarning("Cannot save user: Azure AD ID is null");
+                    return null;
+                }
+
+                string azureAdId = userDetails.id;
+                string email = userDetails.mail ?? userDetails.userPrincipalName ?? "";
+                string displayName = userDetails.displayName ?? "";
+
+                if (string.IsNullOrEmpty(email))
+                {
+                    _logger.LogWarning("Cannot save user: email is null or empty");
+                    return null;
+                }
+
+                _logger.LogInformation("Attempting to save/update user - Azure AD ID: {AzureAdId}, Email: {Email}, Name: {DisplayName}",
+                    azureAdId, email, displayName);
+
+                // First, try to find user by Azure AD ID
+                var existingUser = await _userService.GetUserByAzureAdIdAsync(azureAdId);
+
+                if (existingUser != null)
+                {
+                    _logger.LogInformation("User found by Azure AD ID, updating: {UserId}", existingUser.Id);
+
+                    // Update existing user's information
+                    existingUser.Name = displayName;
+                    existingUser.Email = email;
+
+                    await _userService.UpdateUserAsync(existingUser);
+                    _logger.LogInformation("User updated successfully: {UserId}", existingUser.Id);
+                    return existingUser;
+                }
+
+                // If not found by Azure AD ID, try to find by email
+                existingUser = await _userService.GetUserByEmailAsync(email);
+
+                if (existingUser != null)
+                {
+                    _logger.LogInformation("User found by email, linking Azure AD ID: {UserId}", existingUser.Id);
+
+                    // Link existing user with Azure AD ID
+                    existingUser.AzureAdId = azureAdId;
+                    existingUser.Name = displayName; // Update name as well
+
+                    await _userService.UpdateUserAsync(existingUser);
+                    _logger.LogInformation("User linked with Azure AD ID successfully: {UserId}", existingUser.Id);
+                    return existingUser;
+                }
+
+                // Create new user
+                _logger.LogInformation("Creating new user for Azure AD ID: {AzureAdId}", azureAdId);
+
+                var newUser = new User
+                {
+                    AzureAdId = azureAdId,
+                    Name = displayName,
+                    Email = email,
+                    Password = "", // Teams SSO users don't need a password
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var createdUser = await _userService.CreateUserAsync(newUser);
+                _logger.LogInformation("New user created successfully: {UserId}, Azure AD ID: {AzureAdId}",
+                    createdUser.Id, createdUser.AzureAdId);
+
+                return createdUser;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SaveOrUpdateUserAsync failed with exception: {Message}", ex.Message);
+                return null;
+            }
+        }
+
         // New endpoint to get current user information using Graph token
         [HttpGet("user-info")]
         [Authorize]
@@ -120,12 +205,22 @@ namespace mt_backend.Controllers
                     return StatusCode(500, new { error = "Failed to retrieve user information" });
                 }
 
+                // Save or update user in database
+                var savedUser = await SaveOrUpdateUserAsync(userDetails);
+
                 _logger.LogInformation("GetUserInfo completed successfully");
 
                 return Ok(new
                 {
                     success = true,
-                    user = userDetails
+                    user = userDetails,
+                    savedUser = savedUser != null ? new
+                    {
+                        id = savedUser.Id,
+                        name = savedUser.Name,
+                        email = savedUser.Email,
+                        azureAdId = savedUser.AzureAdId
+                    } : null
                 });
             }
             catch (Exception ex)
@@ -157,6 +252,7 @@ namespace mt_backend.Controllers
 
                 var userDetails = (object?)null;
                 string? token = null;
+                User? savedUser = null;
 
                 try
                 {
@@ -174,10 +270,29 @@ namespace mt_backend.Controllers
                             _logger.LogInformation("Getting user details with acquired token");
                             userDetails = await GetUserDetailsAsync(token);
 
+                            if (userDetails != null)
+                            {
+                                // Save or update user in database
+                                savedUser = await SaveOrUpdateUserAsync(userDetails);
+                                _logger.LogInformation("User saved/updated in database: {HasSavedUser}", savedUser != null);
+                            }
+
                             _logger.LogInformation("Returning OBO-from-context response with user details: {HasUserDetails}",
                                 userDetails != null);
 
-                            return Ok(new { graphToken = token, exchangeType = "obo-from-context", user = userDetails });
+                            return Ok(new
+                            {
+                                graphToken = token,
+                                exchangeType = "obo-from-context",
+                                user = userDetails,
+                                savedUser = savedUser != null ? new
+                                {
+                                    id = savedUser.Id,
+                                    name = savedUser.Name,
+                                    email = savedUser.Email,
+                                    azureAdId = savedUser.AzureAdId
+                                } : null
+                            });
                         }
                         else
                         {
@@ -230,10 +345,29 @@ namespace mt_backend.Controllers
                 _logger.LogInformation("Getting user details with manual OBO token");
                 userDetails = await GetUserDetailsAsync(graphToken);
 
+                if (userDetails != null)
+                {
+                    // Save or update user in database
+                    savedUser = await SaveOrUpdateUserAsync(userDetails);
+                    _logger.LogInformation("User saved/updated in database: {HasSavedUser}", savedUser != null);
+                }
+
                 _logger.LogInformation("Returning manual-obo response with user details: {HasUserDetails}",
                     userDetails != null);
 
-                return Ok(new { graphToken, exchangeType = "manual-obo", user = userDetails });
+                return Ok(new
+                {
+                    graphToken,
+                    exchangeType = "manual-obo",
+                    user = userDetails,
+                    savedUser = savedUser != null ? new
+                    {
+                        id = savedUser.Id,
+                        name = savedUser.Name,
+                        email = savedUser.Email,
+                        azureAdId = savedUser.AzureAdId
+                    } : null
+                });
             }
             catch (Exception ex)
             {
