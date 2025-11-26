@@ -37,8 +37,8 @@ export default function Header({ onMenuClick }) {
         {user?.name ? (
           <Link
             to="#"
-            className="text-sm font-medium hover:underline"
-            title="Go to Profile"
+            className="text-sm font-medium" // hover:underline
+            // title="Go to Profile"
           >
             Welcome, {user.name}
           </Link>
