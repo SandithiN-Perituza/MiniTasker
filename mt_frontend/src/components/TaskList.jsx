@@ -15,7 +15,7 @@ export default function TaskList() {
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [showMine, setShowMine] = useState(false);
+  const [showMine, setShowMine] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
   const tasksPerPage = 5;
@@ -136,7 +136,7 @@ export default function TaskList() {
 
           <button
             className={`px-4 py-2 rounded ${
-              showMine ? "bg-green-500 text-white" : "bg-gray-200 text-gray-700"
+              showMine ? "bg-gray-200 text-gray-700" : "bg-green-500 text-white"
             }`}
             onClick={() => {
               setShowMine((prev) => !prev);
